@@ -175,6 +175,72 @@ async function exportFlow(context, worker, extId, id) {
   await worker.evaluate(() => chrome.storage.local.remove('settings'));
 }
 
+/** 설정 화면: 바꾸면 바로 저장, 잘못된 폴더 이름은 안내, 크롬 단축키 표시 */
+async function optionsFlow(context, worker, extId) {
+  const page = await context.newPage();
+  await page.goto(`chrome-extension://${extId}/options.html`);
+  await page.waitForSelector('#papers .paper');
+  const stored = () => worker.evaluate(async () => (await chrome.storage.local.get('settings')).settings ?? {});
+  await page.locator('#file-format button[data-value="jpg"]').click();
+  await page.waitForTimeout(200);
+  check('설정: 파일 형식 JPEG 저장', (await stored()).fileFormat === 'jpg');
+  await page.locator('#papers .paper').nth(3).click();
+  await page.waitForTimeout(200);
+  check('설정: PDF 용지 A4 저장', (await stored()).pdfPaper === 'a4');
+  await page.locator('#save-folder').fill('..');
+  await page.locator('#save-folder-btn').click();
+  check('설정: 폴더 이름 ".." → 오류 안내, 저장 안 함', (await page.locator('#folder-error').isVisible()) && (await stored()).saveFolder === '');
+  await page.locator('#save-folder').fill('  내 캡처  ');
+  await page.locator('#save-folder-btn').click();
+  await page.waitForTimeout(200);
+  check('설정: 폴더 이름 저장(앞뒤 공백 제거)', (await stored()).saveFolder === '내 캡처', (await stored()).saveFolder);
+  await page.locator('#scroll-delay').selectOption('300');
+  await page.waitForTimeout(200);
+  check('설정: 스크롤 사이 기다리기 300ms 저장', (await stored()).scrollDelayMs === 300);
+  const sc = await page.locator('#shortcut-current').textContent();
+  check('설정: 크롬 단축키 표시', /Alt\+Shift\+K|⌥⇧K/.test(sc), sc);
+  await page.screenshot({ path: join(OUT, 'options.png'), fullPage: true });
+  await page.close();
+  await worker.evaluate(() => chrome.storage.local.remove('settings'));
+}
+
+/** 바로 파일로 내려받기(SET-15): 결과 탭 없이 파일이 저장된다 */
+async function autoDownloadFlow(context, worker, extId, origin) {
+  await worker.evaluate(() => chrome.storage.local.set({ settings: { autoDownload: true, fileFormat: 'png' } }));
+  const page = context.pages()[0];
+  await page.goto(origin + '/dark.html');
+  await page.bringToFront();
+  const before = await worker.evaluate(async () => (await chrome.downloads.search({})).length);
+  const tab = await worker.evaluate(async (url) => {
+    const [t] = await chrome.tabs.query({ url });
+    return { id: t.id, windowId: t.windowId };
+  }, origin + '/dark.html');
+  const driverPromise = context.waitForEvent('page');
+  await worker.evaluate((url) => chrome.windows.create({ url, focused: false }), `chrome-extension://${extId}/result.html?id=driver`);
+  const driver = await driverPromise;
+  await driver.waitForLoadState();
+  let resultOpened = false;
+  const onPage = (p) => {
+    if (p.url().includes('result.html?id=') && !p.url().includes('driver')) resultOpened = true;
+  };
+  context.on('page', onPage);
+  const last = await driver.evaluate(
+    (tab) =>
+      new Promise((done) => {
+        const port = chrome.runtime.connect({ name: 'capture-popup' });
+        port.onMessage.addListener((m) => (m.kind === 'done' || m.kind === 'error') && done(m));
+        port.postMessage({ kind: 'open', tabId: tab.id, windowId: tab.windowId });
+      }),
+    tab,
+  );
+  await driver.waitForTimeout(1500);
+  context.off('page', onPage);
+  const after = await worker.evaluate(async () => (await chrome.downloads.search({})).length);
+  check('자동 내려받기: 완료 메시지(autoDownloaded) + 파일 1개 + 결과 탭 안 열림', last.autoDownloaded === true && after === before + 1 && !resultOpened, JSON.stringify(last));
+  await driver.close();
+  await worker.evaluate(() => chrome.storage.local.remove('settings'));
+}
+
 async function main() {
   rmSync(OUT, { recursive: true, force: true });
   mkdirSync(OUT, { recursive: true });
@@ -205,6 +271,8 @@ async function main() {
     const isOurs = (w) => w.url().endsWith('/background.js');
     let worker = context.serviceWorkers().find(isOurs);
     if (!worker) worker = await context.waitForEvent('serviceworker', { predicate: isOurs });
+    // 막 시작한 서비스 워커는 chrome.* API가 붙기 전일 수 있어 준비될 때까지 기다린다
+    for (let k = 0; k < 50 && !(await worker.evaluate(() => typeof chrome?.tabs?.query === 'function')); k++) await new Promise((r) => setTimeout(r, 100));
     const extId = new URL(worker.url()).host;
     check('서비스 워커가 뜬다', !!extId, extId);
 
@@ -296,6 +364,8 @@ async function main() {
 
     await editorFlow(context, extId, shotIds['/long.html']);
     await exportFlow(context, worker, extId, shotIds['/long.html']);
+    await optionsFlow(context, worker, extId);
+    await autoDownloadFlow(context, worker, extId, origin);
 
     check('페이지 스크립트 오류 없음', consoleErrors.length === 0, consoleErrors.join(' | '));
   } finally {
