@@ -25,11 +25,8 @@ export interface ShotRecord {
   image: Blob;
   /** 목록용 작은 이미지 (페이지 위쪽 부분) */
   thumb: Blob;
-  /** 편집 내용. 없으면 편집하지 않은 상태 */
-  doc?: EditorDoc;
-  /** 편집 내용이 반영된 미리보기 (RES-08). 편집하지 않았으면 없음 */
-  preview?: Blob;
+  /** 편집 내용. 결과 화면·저장은 이 내용을 원본 위에 그려서 만든다 (RES-08) */
+  doc: EditorDoc;
   links: LinkRect[];
 }
 
-export type ShotSummary = Omit<ShotRecord, 'image' | 'preview'>;

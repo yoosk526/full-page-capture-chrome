@@ -1,0 +1,121 @@
+import { describe, expect, it } from 'vitest';
+import { emptyDoc, type EditorDoc, type EditorObject } from '../src/core/doc';
+import {
+  LIMITS,
+  addBadge,
+  addObject,
+  clampValue,
+  cloneInto,
+  hitTest,
+  moveLayer,
+  resizeRect,
+} from '../src/core/editorModel';
+
+const base = (): EditorDoc => emptyDoc({ position: 'none', dateFormat: 'date' });
+const box = { x: 0, y: 0, w: 40, h: 40 };
+const rect = (id: string, x = 0): EditorObject => ({ id, type: 'rect', x, y: 0, w: 100, h: 100, color: '#000', width: 4, fill: null, radius: 0 });
+const numbers = (d: EditorDoc) => d.objects.map((o) => (o.type === 'badge' ? o.number : null));
+
+describe('번호 표시 번호 매기기 (EDT-06)', () => {
+  // 목적: 첫 번호 표시가 0이나 2로 시작하는 결함을 막는다
+  it('[EP] TC-BADGE-01 빈 문서에서 첫 번호 표시 → 1', () => {
+    expect(numbers(addBadge(base(), box, '#000', 'b1'))).toEqual([1]);
+  });
+
+  // 목적: 연속으로 만든 번호가 같은 숫자로 겹치는 결함을 막는다
+  it('[EP] TC-BADGE-02 연속으로 3개 만들기 → 1, 2, 3', () => {
+    let d = base();
+    for (const id of ['b1', 'b2', 'b3']) d = addBadge(d, box, '#000', id);
+    expect(numbers(d)).toEqual([1, 2, 3]);
+  });
+
+  // 목적: 번호 표시를 복제하면 같은 번호가 두 개 생기는 결함을 막는다
+  it('[EP] TC-BADGE-03 번호 표시 복제 → 새 번호(다음 숫자)', () => {
+    const d = addBadge(base(), box, '#000', 'b1');
+    const copied = cloneInto(d, d.objects[0], 20, 'b2');
+    expect(numbers(copied)).toEqual([1, 2]);
+  });
+});
+
+describe('개체 겹침 순서 (EDT-10 앞으로 가져오기)', () => {
+  // 목적: "앞으로 가져오기"가 한 칸이 아니라 맨 앞으로 보내거나 순서를 망가뜨리는 결함을 막는다
+  it('[EP] TC-LAYER-01 가운데 개체 앞으로 → 한 칸 위', () => {
+    const d = ['a', 'b', 'c'].reduce((doc, id) => addObject(doc, rect(id)), base());
+    expect(moveLayer(d, 'b', 1).objects.map((o) => o.id)).toEqual(['a', 'c', 'b']);
+  });
+
+  // 목적: 맨 위 개체를 더 앞으로 보내면 개체가 사라지는 결함을 막는다
+  it('[BVA] TC-LAYER-02 맨 위 개체 앞으로 → 그대로', () => {
+    const d = ['a', 'b'].reduce((doc, id) => addObject(doc, rect(id)), base());
+    expect(moveLayer(d, 'b', 1)).toBe(d);
+  });
+
+  // 목적: 맨 아래 개체를 더 뒤로 보내면 개체가 사라지는 결함을 막는다
+  it('[BVA] TC-LAYER-03 맨 아래 개체 뒤로 → 그대로', () => {
+    const d = ['a', 'b'].reduce((doc, id) => addObject(doc, rect(id)), base());
+    expect(moveLayer(d, 'a', -1)).toBe(d);
+  });
+});
+
+describe('clampValue: 두께·글자 크기 범위 (상수 기준, 범위는 [미확인])', () => {
+  const s = LIMITS.stroke;
+  // 목적: 최소보다 작은 두께(0)가 들어가 선이 안 보이는 결함을 막는다
+  it('[BVA] TC-LIM-01 두께 = 최소-1 → 최소', () => {
+    expect(clampValue('stroke', s.min - 1)).toBe(s.min);
+  });
+
+  // 목적: 최소값 자체를 바꾸는 결함을 막는다
+  it('[BVA] TC-LIM-02 두께 = 최소 → 그대로', () => {
+    expect(clampValue('stroke', s.min)).toBe(s.min);
+  });
+
+  // 목적: 최대값 자체를 바꾸는 결함을 막는다
+  it('[BVA] TC-LIM-03 두께 = 최대 → 그대로', () => {
+    expect(clampValue('stroke', s.max)).toBe(s.max);
+  });
+
+  // 목적: 최대를 넘는 두께가 들어가는 결함을 막는다
+  it('[BVA] TC-LIM-04 두께 = 최대+1 → 최대', () => {
+    expect(clampValue('stroke', s.max + 1)).toBe(s.max);
+  });
+
+  // 목적: 범위가 다른 항목(글자 크기)에 두께 범위를 잘못 쓰는 결함을 막는다
+  it('[BVA] TC-LIM-05 글자 크기 = 최대+1 → 글자 크기 최대', () => {
+    expect(clampValue('fontSize', LIMITS.fontSize.max + 1)).toBe(LIMITS.fontSize.max);
+  });
+
+  // 목적: 숫자가 아닌 값(NaN)이 들어가 그리기가 깨지는 결함을 막는다
+  it('[EP] TC-LIM-06 숫자가 아님(NaN) → 최소', () => {
+    expect(clampValue('stroke', Number.NaN)).toBe(s.min);
+  });
+});
+
+describe('hitTest: 누른 위치의 개체 찾기 (EDT-01)', () => {
+  const line: EditorObject = { id: 'L', type: 'line', x1: 0, y1: 0, x2: 100, y2: 0, color: '#000', width: 4 };
+  // 목적: 겹친 개체 중 아래 개체가 골라지는 결함을 막는다
+  it('[EP] TC-HIT-01 두 개체가 겹친 곳 → 위(나중) 개체', () => {
+    expect(hitTest([rect('a'), rect('b', 50)], 60, 50, 0)).toBe('b');
+  });
+
+  // 목적: 선의 굵기 안을 눌렀는데 못 고르는 결함을 막는다
+  it('[EP] TC-HIT-02 선 위(굵기 안) → 그 선', () => {
+    expect(hitTest([line], 50, 2, 0)).toBe('L');
+  });
+
+  // 목적: 빈 곳을 눌렀는데 엉뚱한 개체가 골라지는 결함을 막는다
+  it('[EP] TC-HIT-03 개체에서 먼 곳 → 없음', () => {
+    expect(hitTest([line, rect('a', 500)], 50, 60, 6)).toBeNull();
+  });
+});
+
+describe('resizeRect: 핸들로 크기 조절 (EDT-01)', () => {
+  // 목적: 오른쪽 아래 핸들을 끌었을 때 크기가 늘지 않는 결함을 막는다
+  it('[EP] TC-RSZ-01 오른쪽 아래 핸들을 (+10, +20) → 폭·높이 증가', () => {
+    expect(resizeRect({ x: 0, y: 0, w: 100, h: 50 }, 'se', 10, 20)).toEqual({ x: 0, y: 0, w: 110, h: 70 });
+  });
+
+  // 목적: 핸들을 반대편 너머로 끌었을 때 폭이 음수가 되어 그리기·저장이 깨지는 결함을 막는다
+  it('[EP] TC-RSZ-02 왼쪽 핸들을 오른쪽 변 너머로 → 뒤집혀 양수 폭', () => {
+    expect(resizeRect({ x: 0, y: 0, w: 100, h: 50 }, 'w', 130, 0)).toEqual({ x: 100, y: 0, w: 30, h: 50 });
+  });
+});

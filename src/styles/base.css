@@ -23,6 +23,11 @@
   box-sizing: border-box;
 }
 
+/* hidden 속성이 display 지정보다 항상 우선하게 한다 */
+[hidden] {
+  display: none !important;
+}
+
 body {
   margin: 0;
   background: var(--bg);

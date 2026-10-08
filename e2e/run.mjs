@@ -20,6 +20,111 @@ function check(name, ok, detail = '') {
   console.log(`${ok ? 'PASS' : 'FAIL'}  ${name}${detail ? `  (${detail})` : ''}`);
 }
 
+/** 편집기: 도구로 개체를 만들고 실행 취소·자르기·도장을 확인한다 */
+async function editorFlow(context, extId, id) {
+  const ed = await context.newPage();
+  await ed.setViewportSize({ width: 1280, height: 800 }).catch(() => undefined);
+  await ed.goto(`chrome-extension://${extId}/editor.html?id=${id}`);
+  await ed.waitForSelector('#toolbar [data-tool]');
+  await ed.waitForTimeout(300);
+  const box = await ed.locator('#view').boundingBox();
+  const at = (fx, fy) => [box.x + box.width * fx, box.y + box.height * fy];
+  const dragBy = async (tool, [x0, y0], [x1, y1]) => {
+    await ed.keyboard.press(tool);
+    await ed.mouse.move(x0, y0);
+    await ed.mouse.down();
+    for (let k = 1; k <= 5; k++) await ed.mouse.move(x0 + ((x1 - x0) * k) / 5, y0 + ((y1 - y0) * k) / 5);
+    await ed.mouse.up();
+  };
+  const status = () => ed.locator('#status').textContent();
+
+  check('편집기: 처음 비율 75%', (await ed.locator('#zoom-label').textContent()) === '75%');
+  check('편집기: 처음엔 실행 취소 비활성', await ed.locator('#undo-btn').isDisabled());
+  await dragBy('r', at(0.2, 0.2), at(0.45, 0.35));
+  await dragBy('a', at(0.5, 0.5), at(0.7, 0.3));
+  await dragBy('o', at(0.2, 0.5), at(0.35, 0.65));
+  await dragBy('l', at(0.1, 0.8), at(0.4, 0.85));
+  await dragBy('b', at(0.55, 0.6), at(0.75, 0.75));
+  await dragBy('h', at(0.1, 0.1), at(0.3, 0.12));
+  await dragBy('p', at(0.6, 0.15), at(0.8, 0.25));
+  await dragBy('m', at(0.6, 0.25), at(0.8, 0.35));
+  await ed.keyboard.press('n');
+  await ed.mouse.click(...at(0.85, 0.5));
+  await ed.mouse.click(...at(0.85, 0.65));
+  await ed.keyboard.press('t');
+  await ed.mouse.click(...at(0.3, 0.9));
+  await ed.keyboard.type('안녕하세요 테스트');
+  await ed.keyboard.press('Escape');
+  await ed.waitForTimeout(100);
+  const s1 = await status();
+  check('편집기: 개체 11개 만들기(도구 10종)', s1.includes('개체 11개'), s1);
+  const names = await ed.locator('#objects-list .name').allTextContents();
+  check('편집기: 번호 표시는 1, 2 순서로 올라감', names.includes('번호 1') && names.includes('번호 2'), names.join(','));
+  check('편집기: 목록 맨 위가 가장 나중 개체(텍스트)', names[0] === '텍스트', names[0]);
+
+  await ed.keyboard.press(process.platform === 'darwin' ? 'Meta+z' : 'Control+z');
+  check('편집기: 실행 취소 → 10개', (await status()).includes('개체 10개'), await status());
+  await ed.keyboard.press(process.platform === 'darwin' ? 'Meta+y' : 'Control+y');
+  check('편집기: 다시 실행 → 11개', (await status()).includes('개체 11개'), await status());
+
+  // 선택 → 복제 → 삭제
+  await ed.keyboard.press('v');
+  await ed.locator('#objects-list li').nth(3).click();
+  await ed.keyboard.press('Control+d');
+  check('편집기: 복제(Ctrl+D) → 12개', (await status()).includes('개체 12개'), await status());
+  await ed.keyboard.press('Delete');
+  check('편집기: 지우기(Delete) → 11개', (await status()).includes('개체 11개'), await status());
+
+  // 개체를 고르면 오른쪽 패널에 그 개체의 스타일이 나온다 → 색 바꾸기
+  await ed.locator('#objects-list li', { hasText: '사각형' }).click();
+  const panelText = await ed.locator('#style-panel').textContent();
+  check('편집기: 사각형을 고르면 색·채우기·두께·모서리 항목', ['색', '채우기', '두께', '모서리 둥글기'].every((w) => panelText.includes(w)), panelText);
+  await ed.locator('#style-panel .field').first().locator('.swatch[title="초록"]').click();
+  const dot = await ed.locator('#objects-list li', { hasText: '사각형' }).locator('.icon-btn').count();
+  const color = await ed.evaluate(() => getComputedStyle(document.querySelector('#style-panel .swatch.selected')).backgroundColor);
+  check('편집기: 색 바꾸기(초록) 반영', color === 'rgb(48, 164, 108)' && dot === 3, color);
+  await ed.keyboard.press('Escape');
+
+  // 도장 켜기(U) → 결과 크기가 커진다
+  const before = await status();
+  await ed.keyboard.press('u');
+  const after = await status();
+  check('편집기: U로 주소·날짜 도장 켜기 → 결과 높이 증가', before !== after, `${before} → ${after}`);
+  await ed.screenshot({ path: join(OUT, 'editor.png') });
+
+  // 자르기: C → 오른쪽 아래 핸들을 안쪽으로 → Enter
+  await ed.keyboard.press('c');
+  await ed.waitForTimeout(200);
+  await ed.screenshot({ path: join(OUT, 'editor-crop.png') });
+  // 자르기 화면은 전체 맞춤이라 이미지가 가운데에 있다 → 오른쪽 변 가운데 핸들을 왼쪽으로 끈다
+  const vb = await ed.locator('#view').boundingBox();
+  const z = parseFloat(await ed.locator('#zoom-label').textContent()) / 100;
+  const ex = vb.x + vb.width / 2 + (1000 * z) / 2;
+  const ey = vb.y + vb.height / 2;
+  await ed.mouse.move(ex, ey);
+  await ed.mouse.down();
+  await ed.mouse.move(ex - 50, ey, { steps: 5 });
+  await ed.mouse.up();
+  await ed.keyboard.press('Enter');
+  await ed.waitForTimeout(100);
+  const cropped = await status();
+  check('편집기: 자르기 적용 → 크기 줄어듦', cropped !== after, cropped);
+  await ed.keyboard.press('Shift+?');
+  check('편집기: Shift+?로 단축키 창', await ed.locator('#shortcuts-dialog').isVisible());
+  await ed.screenshot({ path: join(OUT, 'editor-shortcuts.png') });
+  await ed.keyboard.press('Escape');
+
+  // 뒤로 → 결과 화면에 편집 내용 반영 (RES-08)
+  await ed.locator('#back-btn').click();
+  await ed.waitForURL(/result\.html/);
+  await ed.waitForSelector('#preview[src^="blob:"]');
+  await ed.waitForTimeout(500);
+  const size = await ed.locator('#image-size').textContent();
+  check('결과 화면: 편집(자르기) 반영된 크기', cropped.startsWith(size.replace(' px', '')), `${size} / ${cropped}`);
+  await ed.screenshot({ path: join(OUT, 'result-edited.png') });
+  await ed.close();
+}
+
 async function main() {
   rmSync(OUT, { recursive: true, force: true });
   mkdirSync(OUT, { recursive: true });
@@ -51,6 +156,7 @@ async function main() {
     const extId = new URL(worker.url()).host;
     check('서비스 워커가 뜬다', !!extId, extId);
 
+    const shotIds = {};
     const consoleErrors = [];
     context.on('page', (p) => p.on('pageerror', (e) => consoleErrors.push(`${p.url()}: ${e.message}`)));
 
@@ -131,9 +237,12 @@ async function main() {
         check(`${name}: ${label}`, ok, `y=${pixelYs[k]} rgb(${r},${g},${b})`);
       });
       await result.screenshot({ path: join(OUT, `result-${path.slice(1).replace('.html', '')}.png`) });
+      shotIds[path] = new URL(result.url()).searchParams.get('id');
       await result.close();
       await driver.close();
     }
+
+    await editorFlow(context, extId, shotIds['/long.html']);
 
     check('페이지 스크립트 오류 없음', consoleErrors.length === 0, consoleErrors.join(' | '));
   } finally {

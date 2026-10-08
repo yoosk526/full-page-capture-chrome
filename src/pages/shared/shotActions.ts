@@ -5,7 +5,7 @@ import { t } from '../../shared/i18n';
 import { loadSettings } from '../../shared/settingsStore';
 import type { ShotRecord } from '../../shared/types';
 import { toast } from '../../shared/ui';
-import { exportShot } from '../../render/exportShot';
+import { exportShot, renderShotPng } from '../../render/exportShot';
 
 export async function saveShot(shot: ShotRecord, format: FileFormat, forceAsk = false): Promise<void> {
   try {
@@ -21,7 +21,7 @@ export async function saveShot(shot: ShotRecord, format: FileFormat, forceAsk = 
 
 export async function copyShot(shot: ShotRecord): Promise<void> {
   try {
-    const blob = shot.preview ?? shot.image;
+    const blob = await renderShotPng(shot);
     await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
     toast(t.toast.copied);
   } catch (e) {
@@ -32,7 +32,7 @@ export async function copyShot(shot: ShotRecord): Promise<void> {
 
 export async function printShot(shot: ShotRecord): Promise<void> {
   const img = document.getElementById('print-img') as HTMLImageElement;
-  const url = URL.createObjectURL(shot.preview ?? shot.image);
+  const url = URL.createObjectURL(await renderShotPng(shot));
   img.onload = () => {
     window.print();
     URL.revokeObjectURL(url);

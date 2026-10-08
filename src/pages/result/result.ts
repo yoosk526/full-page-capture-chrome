@@ -1,12 +1,13 @@
 // 결과 화면 (RES-01 ~ RES-08)
 import { fitZoom, formatZoom, zoomIn, zoomOut } from '../../core/zoom';
+import { outputLayout } from '../../core/stamp';
 import type { FileFormat } from '../../core/settings';
 import { deleteShots, getShot, listGroup } from '../../shared/db';
 import { applyI18n, t } from '../../shared/i18n';
 import { loadSettings } from '../../shared/settingsStore';
 import type { ShotRecord } from '../../shared/types';
 import { $, applyIcons, bindMenu, openPage, openReport } from '../../shared/ui';
-import { shotBaseName } from '../../render/exportShot';
+import { renderShotPng, shotBaseName } from '../../render/exportShot';
 import { copyShot, printShot, saveShot } from '../shared/shotActions';
 
 applyI18n();
@@ -20,6 +21,7 @@ let shot: ShotRecord | undefined;
 let zoom = 1;
 let objectUrl = '';
 let loadedOnce = false;
+let outSize = { w: 1, h: 1 };
 
 const img = $('#preview') as HTMLImageElement;
 const viewport = $('#viewport');
@@ -27,15 +29,15 @@ const viewport = $('#viewport');
 function applyZoom(z: number): void {
   if (!shot) return;
   zoom = z;
-  img.style.width = `${Math.round(shot.width * zoom)}px`;
-  img.style.height = `${Math.round(shot.height * zoom)}px`;
+  img.style.width = `${Math.round(outSize.w * zoom)}px`;
+  img.style.height = `${Math.round(outSize.h * zoom)}px`;
   $('#zoom-label').textContent = formatZoom(zoom);
 }
 
 function fit(): number {
   if (!shot) return 1;
   const pad = 48;
-  return fitZoom(shot.width, shot.height, viewport.clientWidth - pad, viewport.clientHeight - pad);
+  return fitZoom(outSize.w, outSize.h, viewport.clientWidth - pad, viewport.clientHeight - pad);
 }
 
 async function renderParts(current: ShotRecord): Promise<void> {
@@ -64,10 +66,12 @@ async function load(): Promise<void> {
   }
   document.title = `${shot.title || t.common.untitled} - ${t.appName}`;
   $('#file-name').textContent = shotBaseName(shot);
-  $('#image-size').textContent = t.common.sizePx(shot.width, shot.height);
+  const out = outputLayout(shot.doc, shot.width, shot.height);
+  $('#image-size').textContent = t.common.sizePx(out.width, out.height);
+  outSize = { w: out.width, h: out.height };
   // 편집한 내용이 있으면 편집이 반영된 미리보기를 보여 준다 (RES-08)
   if (objectUrl) URL.revokeObjectURL(objectUrl);
-  objectUrl = URL.createObjectURL(shot.preview ?? shot.image);
+  objectUrl = URL.createObjectURL(await renderShotPng(shot));
   img.src = objectUrl;
   applyZoom(loadedOnce ? zoom : fit());
   loadedOnce = true;

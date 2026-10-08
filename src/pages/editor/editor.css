@@ -1,0 +1,387 @@
+body {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  overflow: hidden;
+}
+
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  height: 52px;
+  padding: 0 12px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+}
+
+.topbar .group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.topbar h1 {
+  margin: 0 8px 0 2px;
+  font-size: 16px;
+}
+
+#zoom-label {
+  min-width: 56px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.split {
+  display: inline-flex;
+}
+
+.split #save-btn {
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+}
+
+.split-arrow {
+  padding: 0 8px;
+  border-left: 1px solid rgba(255, 255, 255, 0.35) !important;
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+}
+
+.danger-item {
+  color: var(--danger);
+}
+
+.body {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+
+/* 왼쪽 도구 막대 */
+.toolbar {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  width: 52px;
+  padding: 8px 0;
+  background: var(--surface);
+  border-right: 1px solid var(--border);
+}
+
+.toolbar .sep {
+  width: 28px;
+  height: 1px;
+  margin: 4px 0;
+  background: var(--border);
+}
+
+.toolbar .spacer {
+  flex: 1;
+}
+
+/* 가운데 캔버스 */
+.stage-wrap {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  background: #e4e7ec;
+}
+
+.stage {
+  position: absolute;
+  inset: 0;
+  overflow: auto;
+}
+
+.sizer {
+  width: 1px;
+  height: 1px;
+}
+
+#view {
+  position: absolute;
+  left: 0;
+  top: 0;
+  touch-action: none;
+}
+
+#text-input {
+  position: absolute;
+  margin: 0;
+  padding: 0;
+  border: 1px dashed var(--accent);
+  outline: none;
+  background: transparent;
+  resize: none;
+  overflow: hidden;
+  white-space: pre;
+  line-height: 1.25;
+  z-index: 5;
+}
+
+.crop-bar {
+  position: absolute;
+  left: 50%;
+  bottom: 24px;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 8px;
+  padding: 8px;
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow);
+  z-index: 6;
+}
+
+/* 오른쪽 패널 */
+.panel {
+  display: flex;
+  flex-direction: column;
+  width: 260px;
+  background: var(--surface);
+  border-left: 1px solid var(--border);
+  overflow: auto;
+}
+
+.style-panel {
+  padding: 14px;
+  border-bottom: 1px solid var(--border);
+  min-height: 80px;
+}
+
+.style-panel .hint {
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.style-panel h3 {
+  margin: 0 0 10px;
+  font-size: 13px;
+}
+
+.field {
+  margin-bottom: 14px;
+}
+
+.field label,
+.field .label {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 6px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.swatches {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.swatch {
+  position: relative;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 1px solid #c7ccd4;
+  border-radius: 50%;
+}
+
+.swatch.selected {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.swatch.none::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 2px;
+  bottom: 2px;
+  width: 2px;
+  background: var(--danger);
+  transform: translateX(-50%) rotate(45deg);
+}
+
+.swatch.custom {
+  background: conic-gradient(red, yellow, lime, cyan, blue, magenta, red);
+  overflow: hidden;
+}
+
+.swatch.custom input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+input[type='range'] {
+  width: 100%;
+}
+
+.toggle {
+  display: inline-flex;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.toggle button {
+  padding: 6px 12px;
+  border: 0;
+  background: var(--surface);
+}
+
+.toggle button.on {
+  background: var(--text);
+  color: #fff;
+}
+
+.objects {
+  flex: 1;
+  padding: 14px;
+}
+
+.objects h2 {
+  margin: 0 0 8px;
+  font-size: 13px;
+}
+
+.objects ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.objects li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 34px;
+  padding: 0 6px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.objects li:hover {
+  background: #f0f2f5;
+}
+
+.objects li.selected {
+  background: var(--accent-soft);
+}
+
+.objects li .name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.objects li .dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  border: 1px solid #c7ccd4;
+}
+
+.objects li .icon-btn {
+  width: 26px;
+  height: 26px;
+}
+
+.objects .empty {
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.statusbar {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  height: 28px;
+  padding: 0 12px;
+  align-items: center;
+  background: var(--surface);
+  border-top: 1px solid var(--border);
+  color: var(--muted);
+  font-size: 12px;
+}
+
+#page-url {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 50%;
+}
+
+/* 단축키 창 */
+.dialog-backdrop {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(15, 20, 30, 0.35);
+  z-index: 900;
+}
+
+.dialog-backdrop[hidden] {
+  display: none;
+}
+
+.dialog {
+  width: min(760px, 92vw);
+  max-height: 86vh;
+  overflow: auto;
+  padding: 18px 22px;
+  border-radius: 12px;
+  background: var(--surface);
+  box-shadow: var(--shadow);
+}
+
+.dialog-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.dialog-head h2 {
+  margin: 0;
+  font-size: 17px;
+}
+
+.shortcut-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px 32px;
+  margin-top: 12px;
+}
+
+.shortcut-grid h3 {
+  margin: 10px 0 6px;
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.shortcut-grid .row {
+  display: flex;
+  justify-content: space-between;
+  padding: 4px 0;
+  border-bottom: 1px solid #f0f2f5;
+}
+
+kbd {
+  display: inline-block;
+  min-width: 22px;
+  padding: 1px 6px;
+  border: 1px solid var(--border);
+  border-bottom-width: 2px;
+  border-radius: 5px;
+  background: #f8f9fb;
+  font: 12px ui-monospace, monospace;
+  text-align: center;
+}
