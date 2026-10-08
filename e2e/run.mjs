@@ -205,16 +205,16 @@ async function optionsFlow(context, worker, extId) {
 }
 
 /** 바로 파일로 내려받기(SET-15): 결과 탭 없이 파일이 저장된다 */
-async function autoDownloadFlow(context, worker, extId, origin) {
+async function autoDownloadFlow(context, worker, extId, origin, path = '/dark.html') {
   await worker.evaluate(() => chrome.storage.local.set({ settings: { autoDownload: true, fileFormat: 'png' } }));
   const page = context.pages()[0];
-  await page.goto(origin + '/dark.html');
+  await page.goto(origin + path);
   await page.bringToFront();
   const before = await worker.evaluate(async () => (await chrome.downloads.search({})).length);
   const tab = await worker.evaluate(async (url) => {
     const [t] = await chrome.tabs.query({ url });
     return { id: t.id, windowId: t.windowId };
-  }, origin + '/dark.html');
+  }, origin + path);
   const driverPromise = context.waitForEvent('page');
   await worker.evaluate((url) => chrome.windows.create({ url, focused: false }), `chrome-extension://${extId}/result.html?id=driver`);
   const driver = await driverPromise;
@@ -235,8 +235,8 @@ async function autoDownloadFlow(context, worker, extId, origin) {
   );
   await driver.waitForTimeout(1500);
   context.off('page', onPage);
-  const after = await worker.evaluate(async () => (await chrome.downloads.search({})).length);
-  check('자동 내려받기: 완료 메시지(autoDownloaded) + 파일 1개 + 결과 탭 안 열림', last.autoDownloaded === true && after === before + 1 && !resultOpened, JSON.stringify(last));
+  const items = await worker.evaluate(async () => (await chrome.downloads.search({ orderBy: ['-startTime'] })).map((d) => ({ state: d.state, size: d.fileSize, error: d.error })));
+  check(`자동 내려받기(${path}): 완료 메시지 + 파일 1개 + 결과 탭 안 열림`, last.autoDownloaded === true && items.length === before + 1 && items[0].state === 'complete' && !resultOpened, `${JSON.stringify(last)} ${JSON.stringify(items[0])}`);
   await driver.close();
   await worker.evaluate(() => chrome.storage.local.remove('settings'));
 }
@@ -249,9 +249,9 @@ async function galleryFlow(context, worker, extId) {
   await page.waitForSelector('.card');
   const cards = await page.locator('.card').count();
   const countText = await page.locator('#count').textContent();
-  check('내 스크린샷: 보관 개수 표시 = 카드 수', countText === `이 기기에 보관: ${cards}` && cards >= 4, countText);
+  check('내 스크린샷: 보관 개수 표시 = 카드 수', countText === `이 기기에 보관: ${cards}` && cards >= 5, countText);
   const firstTitle = await page.locator('.card .name').first().textContent();
-  check('내 스크린샷: 최신 촬영이 맨 앞(자동 내려받기로 찍은 어두운 페이지)', firstTitle === '어두운 페이지', firstTitle);
+  check('내 스크린샷: 최신 촬영이 맨 앞(마지막으로 찍은 큰 파일 페이지)', firstTitle === '큰 파일 페이지', firstTitle);
   await page.locator('#search').fill('내부');
   check('내 스크린샷: 검색 "내부" → 1개', (await page.locator('.card').count()) === 1);
   await page.locator('#search').fill('');
@@ -405,6 +405,7 @@ async function main() {
     await exportFlow(context, worker, extId, shotIds['/long.html']);
     await optionsFlow(context, worker, extId);
     await autoDownloadFlow(context, worker, extId, origin);
+    await autoDownloadFlow(context, worker, extId, origin, '/noise.html');
     await galleryFlow(context, worker, extId);
 
     // 보호 페이지 안내 (CAP-11): 확장 페이지 자신은 찍을 수 없는 주소이므로 안내가 나와야 한다

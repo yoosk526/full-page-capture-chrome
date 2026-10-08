@@ -15,6 +15,15 @@ export const PAGES = {
     html{background:#121212;color:#eee}body{margin:0;font:16px sans-serif}
     p{height:400px;margin:0;padding:20px}
   </style></head><body>${Array.from({ length: 6 }, (_, i) => `<p>문단 ${i + 1}</p>`).join('')}</body></html>`,
+  // 압축이 잘 안 되는 무작위 점 이미지 → PNG가 수 MB가 된다 (큰 파일 저장 확인용)
+  '/noise.html': `<!doctype html><html><head><title>큰 파일 페이지</title><style>body{margin:0}canvas{display:block}</style></head><body>
+  <canvas id="c" width="1000" height="9000"></canvas><script>
+  const c = document.getElementById('c').getContext('2d');
+  const img = c.createImageData(1000, 9000);
+  let x = 12345;
+  for (let i = 0; i < img.data.length; i++) { x = (x * 1103515245 + 12345) & 0x7fffffff; img.data[i] = i % 4 === 3 ? 255 : x >> 23; }
+  c.putImageData(img, 0, 0);
+  </script></body></html>`,
   '/inner.html': `<!doctype html><html><head><title>내부 스크롤</title><style>
     html,body{margin:0;height:100%;overflow:hidden;font:16px sans-serif}
     .top{height:80px;background:#1565c0;color:#fff}

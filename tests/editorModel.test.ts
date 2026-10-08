@@ -8,7 +8,9 @@ import {
   cloneInto,
   hitTest,
   moveLayer,
+  resizeObject,
   resizeRect,
+  translateObject,
 } from '../src/core/editorModel';
 
 const base = (): EditorDoc => emptyDoc({ position: 'none', dateFormat: 'date' });
@@ -102,6 +104,12 @@ describe('hitTest: 누른 위치의 개체 찾기 (EDT-01)', () => {
     expect(hitTest([line], 50, 2, 0)).toBe('L');
   });
 
+  // 목적: 자유 곡선(펜)의 선 위를 눌러도 고르지 못하는 결함을 막는다(점 사이 구간 판정)
+  it('[EP] TC-HIT-04 펜 곡선의 두 점 사이 → 그 펜', () => {
+    const pen: EditorObject = { id: 'P', type: 'pen', points: [0, 0, 100, 100, 200, 0], color: '#000', width: 4 };
+    expect(hitTest([pen], 150, 50, 0)).toBe('P');
+  });
+
   // 목적: 빈 곳을 눌렀는데 엉뚱한 개체가 골라지는 결함을 막는다
   it('[EP] TC-HIT-03 개체에서 먼 곳 → 없음', () => {
     expect(hitTest([line, rect('a', 500)], 50, 60, 6)).toBeNull();
@@ -117,5 +125,26 @@ describe('resizeRect: 핸들로 크기 조절 (EDT-01)', () => {
   // 목적: 핸들을 반대편 너머로 끌었을 때 폭이 음수가 되어 그리기·저장이 깨지는 결함을 막는다
   it('[EP] TC-RSZ-02 왼쪽 핸들을 오른쪽 변 너머로 → 뒤집혀 양수 폭', () => {
     expect(resizeRect({ x: 0, y: 0, w: 100, h: 50 }, 'w', 130, 0)).toEqual({ x: 100, y: 0, w: 30, h: 50 });
+  });
+});
+
+describe('자유 곡선과 번호 표시의 이동·크기 조절 (EDT-01, EDT-16)', () => {
+  const pen: EditorObject = { id: 'P', type: 'pen', points: [10, 20, 30, 40], color: '#000', width: 4 };
+  // 목적: 점 목록에서 x와 y를 뒤바꿔 옮겨 곡선이 엉뚱한 곳으로 가는 결함을 막는다
+  it('[EP] TC-MOVE-01 펜 곡선을 (+5, -10) 이동 → 모든 x에 +5, 모든 y에 -10', () => {
+    expect(translateObject(pen, 5, -10)).toMatchObject({ points: [15, 10, 35, 30] });
+  });
+
+  // 목적: 곡선 크기를 조절할 때 모양 비율이 깨지거나 기준점이 어긋나는 결함을 막는다
+  it('[EP] TC-RSZ-03 펜 곡선(20x20)의 오른쪽 아래 핸들을 (+20, +20) → 점들이 2배로 늘어남', () => {
+    expect(resizeObject(pen, 'se', 20, 20)).toMatchObject({ points: [10, 20, 50, 60] });
+  });
+
+  // 목적: 번호 표시를 한쪽으로만 늘려 원이 찌그러지는(정사각형이 깨지는) 결함을 막는다
+  it('[EP] TC-RSZ-04 번호 표시를 가로로만 (+30, 0) 끌기 → 가로·세로가 같은 크기', () => {
+    const badge: EditorObject = { id: 'B', type: 'badge', x: 0, y: 0, w: 40, h: 40, color: '#000', number: 1 };
+    const r = resizeObject(badge, 'se', 30, 0) as { w: number; h: number };
+    expect(r.w).toBe(r.h);
+    expect(r.w).toBe(70);
   });
 });
