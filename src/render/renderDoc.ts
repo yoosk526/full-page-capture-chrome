@@ -403,3 +403,19 @@ export function renderToCanvas(src: RenderSource, doc: EditorDoc): OffscreenCanv
   renderDoc(ctx, src, doc);
   return canvas;
 }
+
+/** 목록용 썸네일(폭 400px, 위쪽 부분)을 편집 내용까지 반영해 만든다 (GAL-02) */
+export async function renderThumb(src: RenderSource, doc: EditorDoc): Promise<Blob> {
+  const W = 400;
+  const L = layoutFor(src, doc);
+  const ratio = W / L.width;
+  const h = Math.min(300, Math.max(1, Math.round(L.height * ratio)));
+  const canvas = new OffscreenCanvas(W, h);
+  const ctx = canvas.getContext('2d')!;
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, W, h);
+  ctx.scale(ratio, ratio);
+  ctx.imageSmoothingQuality = 'high';
+  renderDoc(ctx, src, doc, { visible: { x: 0, y: 0, w: L.width, h: h / ratio } });
+  return canvas.convertToBlob({ type: 'image/jpeg', quality: 0.8 });
+}

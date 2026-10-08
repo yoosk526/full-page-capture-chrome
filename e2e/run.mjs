@@ -241,6 +241,45 @@ async function autoDownloadFlow(context, worker, extId, origin) {
   await worker.evaluate(() => chrome.storage.local.remove('settings'));
 }
 
+/** 내 스크린샷: 개수, 검색, 전체 선택, 모두 저장(파일 하나씩), 선택 삭제 */
+async function galleryFlow(context, worker, extId) {
+  const page = await context.newPage();
+  page.on('dialog', (d) => d.accept());
+  await page.goto(`chrome-extension://${extId}/gallery.html`);
+  await page.waitForSelector('.card');
+  const cards = await page.locator('.card').count();
+  const countText = await page.locator('#count').textContent();
+  check('내 스크린샷: 보관 개수 표시 = 카드 수', countText === `이 기기에 보관: ${cards}` && cards >= 4, countText);
+  const firstTitle = await page.locator('.card .name').first().textContent();
+  check('내 스크린샷: 최신 촬영이 맨 앞(자동 내려받기로 찍은 어두운 페이지)', firstTitle === '어두운 페이지', firstTitle);
+  await page.locator('#search').fill('내부');
+  check('내 스크린샷: 검색 "내부" → 1개', (await page.locator('.card').count()) === 1);
+  await page.locator('#search').fill('');
+  await page.locator('.card').first().hover();
+  await page.screenshot({ path: join(OUT, 'gallery.png') });
+
+  await page.locator('#select-all').click();
+  const sel = await page.locator('#selected-count').textContent();
+  check('내 스크린샷: 전체 선택 → "선택됨: N", 버튼은 "전체 선택 해제"', sel === `선택됨: ${cards}` && (await page.locator('#select-all').textContent()) === '전체 선택 해제', sel);
+  await page.screenshot({ path: join(OUT, 'gallery-select.png') });
+  const before = await worker.evaluate(async () => (await chrome.downloads.search({})).length);
+  await page.locator('#save-selected').click();
+  await page.waitForFunction(() => document.querySelector('.toast')?.classList.contains('show'), null, { timeout: 30000 });
+  await page.waitForTimeout(1500);
+  const after = await worker.evaluate(async () => (await chrome.downloads.search({})).length);
+  check('내 스크린샷: 모두 저장 → 파일이 하나씩 따로 저장', after - before === cards, `${after - before}개`);
+
+  // 하나만 남기고 해제한 뒤 지우기
+  await page.locator('#select-all').click(); // 해제(선택 모드 끝)
+  await page.locator('#select-all').click(); // 다시 전체 선택
+  for (let k = 1; k < cards; k++) await page.locator('.card').nth(k).click();
+  check('내 스크린샷: 카드 눌러 빼기 → 선택됨: 1', (await page.locator('#selected-count').textContent()) === '선택됨: 1');
+  await page.locator('#delete-selected').click();
+  await page.waitForFunction((n) => document.querySelectorAll('.card').length === n, cards - 1);
+  check('내 스크린샷: 선택 삭제 → 1개 줄어듦', (await page.locator('#count').textContent()) === `이 기기에 보관: ${cards - 1}`);
+  await page.close();
+}
+
 async function main() {
   rmSync(OUT, { recursive: true, force: true });
   mkdirSync(OUT, { recursive: true });
@@ -366,6 +405,16 @@ async function main() {
     await exportFlow(context, worker, extId, shotIds['/long.html']);
     await optionsFlow(context, worker, extId);
     await autoDownloadFlow(context, worker, extId, origin);
+    await galleryFlow(context, worker, extId);
+
+    // 보호 페이지 안내 (CAP-11): 확장 페이지 자신은 찍을 수 없는 주소이므로 안내가 나와야 한다
+    const pop = await context.newPage();
+    await pop.setViewportSize({ width: 380, height: 360 }).catch(() => undefined);
+    await pop.goto(`chrome-extension://${extId}/popup.html`);
+    await pop.waitForSelector('#blocked-view:not([hidden])');
+    check('팝업: 보호 페이지에서는 촬영하지 않고 안내', await pop.locator('#blocked-view h1').isVisible(), await pop.locator('#blocked-view h1').textContent());
+    await pop.screenshot({ path: join(OUT, 'popup-blocked.png') });
+    await pop.close();
 
     check('페이지 스크립트 오류 없음', consoleErrors.length === 0, consoleErrors.join(' | '));
   } finally {

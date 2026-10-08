@@ -37,7 +37,7 @@ import { loadSettings, saveSettings } from '../../shared/settingsStore';
 import type { ShotRecord } from '../../shared/types';
 import { $, applyIcons, bindMenu, isMac, openReport } from '../../shared/ui';
 import { loadSource } from '../../render/exportShot';
-import { fontFor, layoutFor, measureText, renderDoc, type RenderSource } from '../../render/renderDoc';
+import { fontFor, layoutFor, measureText, renderDoc, renderThumb, type RenderSource } from '../../render/renderDoc';
 import { copyShot, printShot, saveShot } from '../shared/shotActions';
 import { shortcutGroups } from './shortcutList';
 
@@ -248,6 +248,14 @@ async function flushSave(): Promise<void> {
   clearTimeout(saveTimer);
   shot = { ...shot, doc: history.present };
   await updateShot(shot.id, { doc: history.present });
+}
+
+/** 편집기를 떠날 때 목록 썸네일에도 편집 내용을 반영한다 */
+let thumbDoc: EditorDoc | null = null;
+async function updateThumb(): Promise<void> {
+  if (!history || thumbDoc === history.present) return;
+  thumbDoc = history.present;
+  await updateShot(shot.id, { thumb: await renderThumb(src, history.present) });
 }
 
 function commit(next: EditorDoc): void {
@@ -1062,6 +1070,7 @@ async function deleteCurrent(): Promise<void> {
 async function goBack(): Promise<void> {
   finishTextEdit();
   await flushSave();
+  await updateThumb();
   if (document.referrer.includes('result.html') && window.history.length > 1) window.history.back();
   else location.replace(`result.html?id=${shot.id}`);
 }
@@ -1129,6 +1138,10 @@ async function main(): Promise<void> {
     void deleteCurrent();
   });
   window.addEventListener('pagehide', () => void flushSave());
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden') void flushSave().then(updateThumb);
+  });
+  thumbDoc = history.present;
 }
 
 void main();
