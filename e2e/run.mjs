@@ -125,6 +125,56 @@ async function editorFlow(context, extId, id) {
   await ed.close();
 }
 
+/** 결과 화면에서 PNG / JPG / PDF 저장, 하위 폴더, 복사 */
+async function exportFlow(context, worker, extId, id) {
+  await worker.evaluate(() =>
+    chrome.storage.local.set({ settings: { saveFolder: 'shots', pdfPaper: 'a4', pdfHeader: true, pdfLinks: true, pdfSmartBreak: true } }),
+  );
+  const page = await context.newPage();
+  await page.goto(`chrome-extension://${extId}/result.html?id=${id}`);
+  await page.waitForSelector('#preview[src^="blob:"]');
+  await page.evaluate(() => {
+    window.__requested = [];
+    const orig = chrome.downloads.download.bind(chrome.downloads);
+    chrome.downloads.download = (opts) => {
+      window.__requested.push(opts.filename);
+      return orig(opts);
+    };
+  });
+  const waitDownload = async (ext) =>
+    worker.evaluate(async (ext) => {
+      for (let k = 0; k < 100; k++) {
+        const items = await chrome.downloads.search({ orderBy: ['-startTime'], mime: ext === 'pdf' ? 'application/pdf' : ext === 'jpg' ? 'image/jpeg' : 'image/png' });
+        const d = items[0];
+        if (d && d.state === 'complete') return { filename: d.filename, size: d.fileSize };
+        await new Promise((r) => setTimeout(r, 200));
+      }
+      return null;
+    }, ext);
+  const magic = { png: '89504e47', jpg: 'ffd8ff', pdf: '25504446' };
+  for (const fmt of ['png', 'jpg', 'pdf']) {
+    await page.locator('#save-more').click();
+    await page.locator(`#save-menu button[data-format="${fmt}"]`).click();
+    const d = await waitDownload(fmt);
+    // Playwright는 내려받은 파일을 임시 폴더에 다른 이름으로 두므로, 확장이 요청한 경로는 따로 기록해 본다
+    const requested = await page.evaluate(() => window.__requested.at(-1));
+    const ok = !!d && readFileSync(d.filename).subarray(0, 4).toString('hex').startsWith(magic[fmt]);
+    check(`저장: ${fmt.toUpperCase()} 파일 내용이 맞고 shots 폴더로 요청됨`, ok && new RegExp(`^shots/screencapture-127-0-0-1-\\d+-long-html\\.${fmt}$`).test(requested), `${requested} (${d?.size} bytes)`);
+    if (fmt === 'pdf' && d) {
+      const text = readFileSync(d.filename).toString('latin1');
+      const count = Number(text.match(/\/Count (\d+)/)?.[1]);
+      check('저장: A4 PDF는 여러 페이지 + 링크 포함', count >= 2 && text.includes('/URI (https://example.com/link)'), `페이지 ${count}`);
+      writeFileSync(join(OUT, 'export.pdf'), readFileSync(d.filename));
+    }
+  }
+  await page.locator('#copy-btn').click();
+  await page.waitForFunction(() => document.querySelector('.toast')?.textContent.includes('복사'));
+  const toastText = await page.locator('.toast').textContent();
+  check('복사: 클립보드 복사 결과 알림', toastText.includes('복사'), toastText);
+  await page.close();
+  await worker.evaluate(() => chrome.storage.local.remove('settings'));
+}
+
 async function main() {
   rmSync(OUT, { recursive: true, force: true });
   mkdirSync(OUT, { recursive: true });
@@ -142,6 +192,7 @@ async function main() {
     headless: true,
     // 화면 크기 흉내(viewport)를 쓰면 실제로 찍히는 높이와 페이지가 아는 높이가 달라지므로 창 크기를 직접 정한다
     viewport: null,
+    acceptDownloads: true,
     args: [
       `--disable-extensions-except=${extDir}`,
       `--load-extension=${extDir}`,
@@ -151,8 +202,9 @@ async function main() {
   });
 
   try {
-    let [worker] = context.serviceWorkers();
-    if (!worker) worker = await context.waitForEvent('serviceworker');
+    const isOurs = (w) => w.url().endsWith('/background.js');
+    let worker = context.serviceWorkers().find(isOurs);
+    if (!worker) worker = await context.waitForEvent('serviceworker', { predicate: isOurs });
     const extId = new URL(worker.url()).host;
     check('서비스 워커가 뜬다', !!extId, extId);
 
@@ -243,6 +295,7 @@ async function main() {
     }
 
     await editorFlow(context, extId, shotIds['/long.html']);
+    await exportFlow(context, worker, extId, shotIds['/long.html']);
 
     check('페이지 스크립트 오류 없음', consoleErrors.length === 0, consoleErrors.join(' | '));
   } finally {

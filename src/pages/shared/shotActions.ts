@@ -5,7 +5,9 @@ import { t } from '../../shared/i18n';
 import { loadSettings } from '../../shared/settingsStore';
 import type { ShotRecord } from '../../shared/types';
 import { toast } from '../../shared/ui';
-import { exportShot, renderShotPng } from '../../render/exportShot';
+import { exportShot, renderShot, renderShotPng } from '../../render/exportShot';
+import { needsShrink, shrinkSize } from '../../core/copySize';
+import { outputLayout } from '../../core/stamp';
 
 export async function saveShot(shot: ShotRecord, format: FileFormat, forceAsk = false): Promise<void> {
   try {
@@ -19,11 +21,26 @@ export async function saveShot(shot: ShotRecord, format: FileFormat, forceAsk = 
   }
 }
 
+/** 복사할 PNG. 2,500만 픽셀을 넘고 설정이 켜져 있으면 줄인다 (EXP-04, SET-16) */
+async function copyBlob(shot: ShotRecord): Promise<{ blob: Blob; shrunk: boolean }> {
+  const settings = await loadSettings();
+  const L = outputLayout(shot.doc, shot.width, shot.height);
+  if (!needsShrink(L.width, L.height, settings.shrinkCopy)) return { blob: await renderShotPng(shot), shrunk: false };
+  const full = await renderShot(shot);
+  const size = shrinkSize(L.width, L.height);
+  const small = new OffscreenCanvas(size.width, size.height);
+  const ctx = small.getContext('2d')!;
+  ctx.imageSmoothingQuality = 'high';
+  ctx.drawImage(full, 0, 0, size.width, size.height);
+  return { blob: await small.convertToBlob({ type: 'image/png' }), shrunk: true };
+}
+
 export async function copyShot(shot: ShotRecord): Promise<void> {
   try {
-    const blob = await renderShotPng(shot);
-    await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
-    toast(t.toast.copied);
+    const result = copyBlob(shot);
+    // 그림을 만드는 동안 사용자 동작(클릭)의 유효 시간이 지나지 않도록 Promise를 그대로 넘긴다
+    await navigator.clipboard.write([new ClipboardItem({ 'image/png': result.then((r) => r.blob) })]);
+    toast((await result).shrunk ? t.toast.copiedShrunk : t.toast.copied);
   } catch (e) {
     console.error(e);
     toast(t.toast.copyFailed);

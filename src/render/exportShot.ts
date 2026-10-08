@@ -4,6 +4,7 @@ import { buildBaseFileName, buildDownloadPath } from '../core/fileName';
 import type { FileFormat, Settings } from '../core/settings';
 import type { ShotRecord } from '../shared/types';
 import { renderToCanvas, type RenderSource } from './renderDoc';
+import { renderPdf } from './exportPdf';
 
 export interface ExportResult {
   blob: Blob;
@@ -38,6 +39,10 @@ export async function renderShotPng(shot: ShotRecord): Promise<Blob> {
 
 export async function exportShot(shot: ShotRecord, format: FileFormat, settings: Settings): Promise<ExportResult> {
   const name = shotBaseName(shot);
+  if (format === 'pdf') {
+    const blob = await renderPdf(await renderShot(shot), shot, settings);
+    return { blob, filename: buildDownloadPath(settings.saveFolder, name, 'pdf') };
+  }
   if (format === 'jpg') {
     const c = await renderShot(shot);
     const blob = await c.convertToBlob({ type: 'image/jpeg', quality: 0.92 });
