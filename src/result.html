@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>캡처 결과 - 한장캡처</title>
+    <link rel="stylesheet" href="./styles/base.css" />
+    <link rel="stylesheet" href="./pages/result/result.css" />
+  </head>
+  <body>
+    <header class="top">
+      <div class="title-block">
+        <span class="title-icon" data-icon="camera"></span>
+        <div>
+          <h1 data-i18n="result.title"></h1>
+          <div class="meta"><span id="file-name"></span><span class="sep">·</span><span id="image-size"></span></div>
+        </div>
+      </div>
+      <div class="side-icons">
+        <button class="icon-btn" id="report-btn" data-icon="flag" data-i18n-title="common.report"></button>
+        <button class="icon-btn" id="gallery-btn" data-icon="folder" data-i18n-title="common.gallery"></button>
+        <button class="icon-btn" id="settings-btn" data-icon="gear" data-i18n-title="common.settings"></button>
+        <button class="icon-btn" id="delete-btn" data-icon="trash" data-i18n-title="result.deleteShot"></button>
+      </div>
+    </header>
+
+    <div class="actions">
+      <button class="btn primary" id="edit-btn" data-icon="edit"><span data-i18n="result.edit"></span></button>
+      <button class="btn" id="copy-btn" data-icon="copy"><span data-i18n="result.copy"></span></button>
+      <button class="btn" id="print-btn" data-icon="print"><span data-i18n="result.print"></span></button>
+      <div class="split">
+        <button class="btn" id="save-btn" data-icon="download"><span id="save-label"></span></button>
+        <button class="btn split-arrow" id="save-more" data-icon="chevronDown" data-i18n-title="result.moreFormats"></button>
+      </div>
+      <div class="parts" id="parts" hidden></div>
+    </div>
+
+    <div class="menu" id="save-menu" hidden>
+      <button data-format="png"><span id="m-png"></span></button>
+      <button data-format="jpg"><span id="m-jpg"></span></button>
+      <button data-format="pdf"><span data-i18n="result.savePdf"></span></button>
+    </div>
+
+    <main id="viewport">
+      <div class="notice" id="not-found" hidden data-i18n="result.notFound"></div>
+      <img id="preview" alt="" draggable="false" />
+    </main>
+
+    <div class="zoom-box">
+      <button class="icon-btn" id="zoom-out" data-icon="minus" data-i18n-title="common.zoomOut"></button>
+      <span id="zoom-label">100%</span>
+      <button class="icon-btn" id="zoom-in" data-icon="plus" data-i18n-title="common.zoomIn"></button>
+      <button class="icon-btn" id="zoom-fit" data-icon="fit" data-i18n-title="common.zoomFit"></button>
+    </div>
+
+    <div id="print-area"><img id="print-img" alt="" /></div>
+
+    <script type="module" src="./pages/result/result.ts"></script>
+  </body>
+</html>

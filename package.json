@@ -11,7 +11,9 @@
     "coverage": "vitest run --coverage",
     "typecheck": "tsc --noEmit",
     "icons": "node scripts/make-icons.mjs",
-    "package": "npm run build && node scripts/package.mjs"
+    "package": "npm run build && node scripts/package.mjs",
+    "e2e": "node e2e/run.mjs",
+    "test:doc": "node scripts/test-cases.mjs"
   },
   "repository": {
     "type": "git",
@@ -24,6 +26,7 @@
   "devDependencies": {
     "@types/chrome": "^0.1.43",
     "@vitest/coverage-v8": "^3.2.7",
+    "playwright-core": "^1.56.1",
     "typescript": "^5.9.3",
     "vite": "^7.3.7",
     "vitest": "^3.2.7"

@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <title>한장캡처</title>
+    <link rel="stylesheet" href="./styles/base.css" />
+    <link rel="stylesheet" href="./pages/popup/popup.css" />
+  </head>
+  <body>
+    <!-- 촬영 진행 (CAP-03) -->
+    <section id="progress-view" hidden>
+      <div class="row">
+        <div class="page-thumb" aria-hidden="true"><div class="page-fill" id="page-fill"></div></div>
+        <div class="info">
+          <div class="status"><span class="dot" id="dot"></span><span id="status-text"></span></div>
+          <div class="count-row">
+            <span class="count" id="count">0 / 0</span>
+            <button class="icon-btn" id="pause-btn" data-icon="pause"></button>
+          </div>
+          <div class="stage" id="stage"></div>
+          <div class="bar"><div class="bar-fill" id="bar-fill"></div></div>
+          <div class="size" id="size"></div>
+        </div>
+      </div>
+      <p class="hint" data-i18n="popup.hint"></p>
+      <button class="btn stop" id="stop-btn" data-icon="close"><span data-i18n="popup.stop"></span></button>
+    </section>
+
+    <!-- 캡처 불가 페이지 안내 (CAP-11) -->
+    <section id="blocked-view" hidden>
+      <div class="app-name" data-i18n="appName"></div>
+      <div class="blocked-icon" data-icon="eyeOff"></div>
+      <h1 data-i18n="popup.blockedTitle"></h1>
+      <p data-i18n="popup.blockedBody"></p>
+      <div class="actions">
+        <button class="btn primary" id="try-btn" data-icon="camera"><span data-i18n="popup.blockedTry"></span></button>
+        <button class="btn" id="close-btn" data-icon="close"><span data-i18n="common.close"></span></button>
+      </div>
+    </section>
+
+    <!-- 오류 / 자동 내려받기 완료 -->
+    <section id="message-view" hidden>
+      <div class="app-name" data-i18n="appName"></div>
+      <h1 id="message-title"></h1>
+      <p id="message-body"></p>
+      <div class="actions">
+        <button class="btn" id="message-close" data-icon="close"><span data-i18n="common.close"></span></button>
+      </div>
+    </section>
+
+    <script type="module" src="./pages/popup/popup.ts"></script>
+  </body>
+</html>

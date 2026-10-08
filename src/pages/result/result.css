@@ -1,0 +1,134 @@
+body {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  overflow: hidden;
+}
+
+.top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 20px 8px;
+  background: var(--surface);
+}
+
+.title-block {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.title-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+h1 {
+  margin: 0;
+  font-size: 18px;
+}
+
+.meta {
+  color: var(--muted);
+  font-size: 13px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 60vw;
+}
+
+.sep {
+  margin: 0 6px;
+}
+
+.side-icons {
+  display: flex;
+  gap: 4px;
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 8px 20px 12px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+}
+
+.split {
+  display: inline-flex;
+}
+
+.split #save-btn {
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+}
+
+.split-arrow {
+  padding: 0 8px;
+  border-left: 0;
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+}
+
+.parts {
+  display: flex;
+  gap: 4px;
+  margin-left: auto;
+  align-items: center;
+  color: var(--muted);
+}
+
+.parts button.current {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+main {
+  flex: 1;
+  overflow: auto;
+  padding: 24px;
+  text-align: center;
+}
+
+#preview {
+  display: inline-block;
+  max-width: none;
+  background: #fff;
+  box-shadow: var(--shadow);
+  image-rendering: auto;
+}
+
+.notice {
+  padding: 40px;
+  color: var(--muted);
+}
+
+.zoom-box {
+  position: fixed;
+  right: 20px;
+  bottom: 20px;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 4px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow);
+}
+
+#zoom-label {
+  min-width: 52px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
