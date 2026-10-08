@@ -28,7 +28,25 @@ function setStyle(el: HTMLElement, prop: string, value: string): void {
   el.style.setProperty(prop, value, 'important');
 }
 
+const STYLE_ID = '__hanjang-capture-style';
+
+/** 스크롤 막대만 숨긴다. overflow:hidden을 쓰면 body가 스크롤하는 페이지에서 스크롤 자체가 막힌다 */
+function addScrollbarStyle(): void {
+  if (document.getElementById(STYLE_ID)) return;
+  const style = document.createElement('style');
+  style.id = STYLE_ID;
+  style.textContent =
+    'html, body { scrollbar-width: none !important; scroll-behavior: auto !important; }' +
+    ' html::-webkit-scrollbar, body::-webkit-scrollbar { display: none !important; }';
+  (document.head ?? document.documentElement).appendChild(style);
+}
+
+function removeScrollbarStyle(): void {
+  document.getElementById(STYLE_ID)?.remove();
+}
+
 function restoreStyles(): void {
+  removeScrollbarStyle();
   for (let i = saved.length - 1; i >= 0; i--) {
     const s = saved[i];
     if (s.value) s.el.style.setProperty(s.prop, s.value, s.priority);
@@ -62,7 +80,8 @@ function documentHeight(): number {
 function findInnerScroller(viewportH: number): HTMLElement | null {
   let best: HTMLElement | null = null;
   let bestArea = 0;
-  for (const el of Array.from(document.querySelectorAll<HTMLElement>('body *'))) {
+  // body 자신이 스크롤 상자인 페이지도 있으므로 body도 후보에 넣는다
+  for (const el of Array.from(document.querySelectorAll<HTMLElement>('body, body *'))) {
     if (el.scrollHeight <= el.clientHeight + 1 || el.clientHeight < viewportH * 0.3) continue;
     const oy = getComputedStyle(el).overflowY;
     if (oy !== 'auto' && oy !== 'scroll' && oy !== 'overlay') continue;
@@ -99,11 +118,19 @@ function collectLinks(): PageMetrics['links'] {
   return links;
 }
 
+/** 창(window) 스크롤로 실제로 내려갈 수 있는지 1px 움직여 본다 */
+function windowCanScroll(): boolean {
+  const y = window.scrollY;
+  const probe = y > 0 ? y - 1 : y + 1;
+  window.scrollTo(window.scrollX, probe);
+  const moved = window.scrollY !== y;
+  window.scrollTo(window.scrollX, y);
+  return moved;
+}
+
 function applyCaptureStyles(): void {
-  const html = document.documentElement;
   // 스크롤 막대가 결과에 찍히지 않게 숨기고, 부드러운 스크롤을 끈다
-  setStyle(html, 'overflow', 'hidden');
-  setStyle(html, 'scroll-behavior', 'auto');
+  addScrollbarStyle();
   if (target) setStyle(target, 'scroll-behavior', 'auto');
   // 고정·스티키 요소는 첫 조각에서만 보이게 한다 (CAP-06)
   if (currentIndex > 0) hideFixed();
@@ -123,13 +150,16 @@ async function prepare(): Promise<PageMetrics> {
   originalScroll = { x: window.scrollX, y: window.scrollY, inner: 0 };
   currentIndex = 0;
   restoreStyles();
-  setStyle(document.documentElement, 'overflow', 'hidden');
+  target = null;
+  // 촬영할 때와 같은 모양(스크롤 막대 없음)에서 크기와 링크 위치를 잰다
+  addScrollbarStyle();
   await nextFrame();
 
   const vh = window.innerHeight;
   const docH = documentHeight();
-  target = docH <= vh + 1 ? findInnerScroller(vh) : null;
-  restoreStyles();
+  if (docH <= vh + 1 || !windowCanScroll()) target = findInnerScroller(vh);
+  applyCaptureStyles();
+  await nextFrame();
 
   let regionTop = 0;
   let regionHeight = vh;
@@ -142,12 +172,11 @@ async function prepare(): Promise<PageMetrics> {
     originalScroll.inner = target.scrollTop;
     fixedEls = collectFixed(target, false);
   } else {
+    contentHeight = documentHeight();
     fixedEls = collectFixed(document, true);
   }
 
   const links = target ? [] : collectLinks(); // TODO(추정): 내부 스크롤 영역의 링크는 PDF 링크로 넣지 않는다
-  applyCaptureStyles();
-  await nextFrame();
 
   return {
     viewportWidth: window.innerWidth,

@@ -70,9 +70,12 @@ async function load(): Promise<void> {
   $('#image-size').textContent = t.common.sizePx(out.width, out.height);
   outSize = { w: out.width, h: out.height };
   // 편집한 내용이 있으면 편집이 반영된 미리보기를 보여 준다 (RES-08)
-  if (objectUrl) URL.revokeObjectURL(objectUrl);
-  objectUrl = URL.createObjectURL(await renderShotPng(shot));
-  img.src = objectUrl;
+  const nextUrl = URL.createObjectURL(await renderShotPng(shot));
+  // 동시에 두 번 불려도 이전 주소를 모두 풀어 준다
+  const prevUrl = objectUrl;
+  objectUrl = nextUrl;
+  img.src = nextUrl;
+  if (prevUrl && prevUrl !== nextUrl) URL.revokeObjectURL(prevUrl);
   applyZoom(loadedOnce ? zoom : fit());
   loadedOnce = true;
   await renderParts(shot);

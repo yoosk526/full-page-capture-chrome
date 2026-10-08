@@ -287,6 +287,8 @@ function refresh(): void {
 
 // ---- 도구 ----
 function setTool(next: ToolId): void {
+  // 자르는 중에 자르기를 다시 고르면 조절 중인 영역과 원래 비율을 잃지 않게 그대로 둔다
+  if (tool === 'crop' && next === 'crop' && cropRect) return;
   finishTextEdit();
   if (tool === 'crop' && next !== 'crop') exitCrop(false);
   tool = next;
@@ -1003,9 +1005,11 @@ function runAction(a: EditorAction): boolean {
       if (!sel) return false;
       commit(removeObject(history.present, sel.id));
       return true;
-    case 'enter':
-      if (tool === 'crop') exitCrop(true);
-      return tool === 'crop';
+    case 'enter': {
+      const wasCrop = tool === 'crop';
+      if (wasCrop) exitCrop(true);
+      return wasCrop;
+    }
     case 'escape':
       if (!$('#shortcuts-dialog').hidden) $('#shortcuts-dialog').hidden = true;
       else if (tool === 'crop') exitCrop(false);
@@ -1055,6 +1059,11 @@ function runAction(a: EditorAction): boolean {
 document.addEventListener('keydown', (e) => {
   const target = e.target as HTMLElement;
   if (target.matches('input, textarea, select') || e.isComposing) return;
+  // 마우스로 끄는 중에는 단축키를 받지 않는다(끄던 임시 상태가 실행 취소 등을 덮어쓰지 않게)
+  if (drag) {
+    e.preventDefault();
+    return;
+  }
   const action = resolveShortcut(e, MAC);
   if (!action) return;
   if (runAction(action)) e.preventDefault();

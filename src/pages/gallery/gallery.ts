@@ -17,20 +17,21 @@ const G = t.gallery;
 let shots: ShotRecord[] = [];
 let selecting = false;
 const selected = new Set<string>();
-const thumbUrls = new Map<string, string>();
+const thumbUrls = new Map<string, { blob: Blob; url: string }>();
 
 function visible(): ShotRecord[] {
   const q = ($('#search') as HTMLInputElement).value;
   return shots.filter((s) => matchesQuery(s, q));
 }
 
+/** 썸네일 주소. 편집기에서 썸네일이 새로 만들어졌으면 새 주소를 만들고 옛 주소는 풀어 준다 */
 function thumbUrl(s: ShotRecord): string {
-  let u = thumbUrls.get(s.id);
-  if (!u) {
-    u = URL.createObjectURL(s.thumb);
-    thumbUrls.set(s.id, u);
-  }
-  return u;
+  const cached = thumbUrls.get(s.id);
+  if (cached && cached.blob === s.thumb) return cached.url;
+  if (cached) URL.revokeObjectURL(cached.url);
+  const url = URL.createObjectURL(s.thumb);
+  thumbUrls.set(s.id, { blob: s.thumb, url });
+  return url;
 }
 
 function iconButton(icon: keyof typeof icons, title: string, onClick: () => void): HTMLButtonElement {
@@ -108,7 +109,7 @@ async function reload(): Promise<void> {
   shots = await listShots();
   const ids = new Set(shots.map((s) => s.id));
   for (const id of [...selected]) if (!ids.has(id)) selected.delete(id);
-  for (const [id, url] of thumbUrls) {
+  for (const [id, { url }] of thumbUrls) {
     if (!ids.has(id)) {
       URL.revokeObjectURL(url);
       thumbUrls.delete(id);

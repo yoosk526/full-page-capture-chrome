@@ -236,7 +236,17 @@ function drawPath(ctx: Ctx, o: PathObj): void {
 
 // ---- 가리기 (흐리게 / 모자이크) ----
 
-const blurCache = new Map<string, OffscreenCanvas>();
+/** 원본 이미지마다 따로 둔다(같은 위치의 가리기라도 다른 스크린샷이면 내용이 다르다) */
+const blurCaches = new WeakMap<object, Map<string, OffscreenCanvas>>();
+
+function cacheFor(image: CanvasImageSource): Map<string, OffscreenCanvas> {
+  let c = blurCaches.get(image);
+  if (!c) {
+    c = new Map();
+    blurCaches.set(image, c);
+  }
+  return c;
+}
 
 function blurredRegion(o: BlurObj, src: RenderSource): OffscreenCanvas | null {
   const x = Math.round(o.x);
@@ -245,6 +255,7 @@ function blurredRegion(o: BlurObj, src: RenderSource): OffscreenCanvas | null {
   const h = Math.round(o.h);
   if (w < 1 || h < 1) return null;
   const key = `${x},${y},${w},${h},${o.strength},${o.mode}`;
+  const blurCache = cacheFor(src.image);
   const hit = blurCache.get(key);
   if (hit) return hit;
   const out = new OffscreenCanvas(w, h);

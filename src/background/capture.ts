@@ -42,6 +42,10 @@ export class CaptureSession {
   private keepAlive: ReturnType<typeof setInterval> | null = null;
 
   private settings!: Settings;
+  /** 멈춤으로 페이지 모양을 원래대로 돌려 둔 상태. 다시 촬영하기 전에 촬영용 모양으로 되돌려야 한다 */
+  private suspended = false;
+  /** 멈춘 횟수. 한 조각을 찍는 사이에 멈춤이 끼었는지 알아내는 데 쓴다 */
+  private pauseCount = 0;
 
   constructor(
     readonly tabId: number,
@@ -66,6 +70,8 @@ export class CaptureSession {
   pause(): void {
     if (this.paused || this.done || this.cancelled) return;
     this.paused = true;
+    this.pauseCount++;
+    this.suspended = true;
     if (this.last?.kind === 'progress') this.emit({ ...this.last, paused: true });
     send(this.tabId, { kind: 'suspend' }).catch(() => undefined);
     this.keepAlive = setInterval(() => chrome.runtime.getPlatformInfo(), KEEPALIVE_MS);
@@ -93,10 +99,12 @@ export class CaptureSession {
   /** 멈춰 있으면 다시 시작할 때까지 기다린다. 다시 시작하면 페이지 모양을 촬영용으로 되돌린다 */
   private async checkpoint(): Promise<void> {
     if (this.cancelled) throw new CancelledError();
-    if (!this.paused) return;
-    await new Promise<void>((r) => this.resumeWaiters.push(r));
+    if (this.paused) await new Promise<void>((r) => this.resumeWaiters.push(r));
     if (this.cancelled) throw new CancelledError();
-    await send(this.tabId, { kind: 'reapply' });
+    if (this.suspended) {
+      this.suspended = false;
+      await send(this.tabId, { kind: 'reapply' });
+    }
   }
 
   private async captureVisible(): Promise<string> {
@@ -127,32 +135,44 @@ export class CaptureSession {
       let stitcher: Stitcher | null = null;
       let covered = 0;
       for (let i = 0; i < positions.length; i++) {
-        await this.checkpoint();
-        this.progress(i + 1, positions.length, 'scroll', stitcher?.width ?? 0, stitcher?.height ?? 0);
-        const actual = await send<number>(tabId, { kind: 'scrollTo', y: positions[i], index: i });
-        await sleep(this.settings.scrollDelayMs);
-        if (this.settings.waitImagesMs > 0) await send(tabId, { kind: 'waitImages', timeoutMs: this.settings.waitImagesMs });
-        await this.checkpoint();
-        const dataUrl = await this.captureVisible();
-        const bitmap = await createImageBitmap(await (await fetch(dataUrl)).blob());
-        if (!stitcher) {
-          // 실제 이미지 폭 / 화면 폭 = 화면 배율(devicePixelRatio). 소수 배율도 그대로 쓴다
-          const scale = bitmap.width / m.viewportWidth;
-          m = { ...m, ...fitToCaptured(m, bitmap.height / scale) };
-          positions = planScrollPositions(m.contentHeight, m.regionHeight);
-          stitcher = new Stitcher(bitmap.width, Math.round(outputHeightCss(m) * scale), scale, m.background);
+        let actual = 0;
+        let dataUrl = '';
+        // 한 조각을 찍는 도중에 멈춤이 끼면(페이지 모양이 원래대로 돌아갔을 수 있음) 그 조각을 처음부터 다시 찍는다
+        for (;;) {
+          await this.checkpoint();
+          this.progress(i + 1, positions.length, 'scroll', stitcher?.width ?? 0, stitcher?.height ?? 0);
+          actual = await send<number>(tabId, { kind: 'scrollTo', y: positions[i], index: i });
+          await sleep(this.settings.scrollDelayMs);
+          if (this.settings.waitImagesMs > 0) await send(tabId, { kind: 'waitImages', timeoutMs: this.settings.waitImagesMs });
+          await sleep(delayBeforeNextCall(this.lastCaptureAt, Date.now()));
+          if (this.paused || this.suspended || this.cancelled) continue;
+          const pausesBefore = this.pauseCount;
+          dataUrl = await this.captureVisible();
+          if (this.pauseCount === pausesBefore) break;
         }
-        const place = placeChunk({
-          isFirst: i === 0,
-          isLast: i === positions.length - 1,
-          actualScroll: actual,
-          coveredUntil: covered,
-          regionTop: m.regionTop,
-          regionHeight: m.regionHeight,
-          viewportHeight: m.viewportHeight,
-        });
-        stitcher.draw(bitmap, place.srcY, place.height, place.destY);
-        bitmap.close();
+        const bitmap = await createImageBitmap(await (await fetch(dataUrl)).blob());
+        let place;
+        try {
+          if (!stitcher) {
+            // 실제 이미지 폭 / 화면 폭 = 화면 배율(devicePixelRatio). 소수 배율도 그대로 쓴다
+            const scale = bitmap.width / m.viewportWidth;
+            m = { ...m, ...fitToCaptured(m, bitmap.height / scale) };
+            positions = planScrollPositions(m.contentHeight, m.regionHeight);
+            stitcher = new Stitcher(bitmap.width, Math.round(outputHeightCss(m) * scale), scale, m.background);
+          }
+          place = placeChunk({
+            isFirst: i === 0,
+            isLast: i === positions.length - 1,
+            actualScroll: actual,
+            coveredUntil: covered,
+            regionTop: m.regionTop,
+            regionHeight: m.regionHeight,
+            viewportHeight: m.viewportHeight,
+          });
+          stitcher.draw(bitmap, place.srcY, place.height, place.destY);
+        } finally {
+          bitmap.close();
+        }
         covered = place.coveredUntil;
         this.progress(i + 1, positions.length, 'scroll', stitcher.width, stitcher.height);
         await stitcher.flush(covered);
@@ -163,6 +183,8 @@ export class CaptureSession {
       if (!stitcher) throw new Error('nothing captured');
       this.progress(total, total, 'stitch', stitcher.width, stitcher.height);
       const parts = await stitcher.finish();
+      // 이어 붙이는 동안 "촬영 그만두기"를 눌렀어도 결과를 남기지 않는다 (CAP-05)
+      if (this.cancelled) throw new CancelledError();
       this.progress(total, total, 'save', stitcher.width, stitcher.height);
 
       const scale = stitcher.width / m.viewportWidth;
@@ -183,6 +205,7 @@ export class CaptureSession {
         doc: emptyDoc(stamp),
         links: partLinks(m, scale, p.y, p.height),
       }));
+      if (this.cancelled) throw new CancelledError();
       for (const s of shots) await putShot(s);
       this.done = true;
       return shots;

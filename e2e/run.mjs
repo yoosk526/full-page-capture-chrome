@@ -20,6 +20,59 @@ function check(name, ok, detail = '') {
   console.log(`${ok ? 'PASS' : 'FAIL'}  ${name}${detail ? `  (${detail})` : ''}`);
 }
 
+/** 촬영 도중 멈춤과 다시 시작: 멈춘 동안 페이지는 원래 모양, 다시 시작하면 끝까지 바르게 찍힌다 (CAP-04) */
+async function pauseFlow(context, worker, extId, origin) {
+  const page = context.pages()[0];
+  await page.goto(origin + '/long.html');
+  await page.bringToFront();
+  const tab = await worker.evaluate(async (url) => {
+    const [t] = await chrome.tabs.query({ url });
+    return { id: t.id, windowId: t.windowId };
+  }, origin + '/long.html');
+  const driverPromise = context.waitForEvent('page');
+  await worker.evaluate((url) => chrome.windows.create({ url, focused: false }), `chrome-extension://${extId}/result.html?id=driver`);
+  const driver = await driverPromise;
+  await driver.waitForLoadState();
+  const resultPromise = context.waitForEvent('page', { predicate: (p) => p.url().includes('result.html?id=') && !p.url().includes('driver') });
+  await driver.evaluate((tab) => {
+    window.__msgs = [];
+    window.__port = chrome.runtime.connect({ name: 'capture-popup' });
+    window.__port.onMessage.addListener((m) => window.__msgs.push(m));
+    window.__port.postMessage({ kind: 'open', tabId: tab.id, windowId: tab.windowId });
+  }, tab);
+  await driver.waitForFunction(() => window.__msgs.some((m) => m.kind === 'progress' && m.current >= 2));
+  await driver.evaluate(() => window.__port.postMessage({ kind: 'togglePause' }));
+  await driver.waitForTimeout(1500);
+  const pausedState = await driver.evaluate(() => {
+    const p = window.__msgs.filter((m) => m.kind === 'progress');
+    return { paused: p.at(-1).paused, current: p.at(-1).current };
+  });
+  const styleGone = await page.evaluate(() => !document.getElementById('__hanjang-capture-style'));
+  await driver.waitForTimeout(1200);
+  const still = await driver.evaluate(() => window.__msgs.filter((m) => m.kind === 'progress').at(-1).current);
+  check('멈춤: 진행이 멈추고 페이지 모양이 원래대로(스크롤 막대 숨김 해제)', pausedState.paused && styleGone && still === pausedState.current, JSON.stringify(pausedState));
+  await driver.evaluate(() => window.__port.postMessage({ kind: 'togglePause' }));
+  const result = await resultPromise;
+  await result.waitForSelector('#preview[src^="blob:"]');
+  const ok = await result.evaluate(async () => {
+    const id = new URLSearchParams(location.search).get('id');
+    const db = await new Promise((r) => { const q = indexedDB.open('hanjang-capture'); q.onsuccess = () => r(q.result); });
+    const shot = await new Promise((r) => { const q = db.transaction('shots').objectStore('shots').get(id); q.onsuccess = () => r(q.result); });
+    const bmp = await createImageBitmap(shot.image);
+    const c = new OffscreenCanvas(bmp.width, bmp.height);
+    const ctx = c.getContext('2d');
+    ctx.drawImage(bmp, 0, 0);
+    const bottom = ctx.getImageData(bmp.width / 2, bmp.height - 5, 1, 1).data;
+    // 오른쪽 끝(스크롤 막대 자리)이 바탕과 같은 색인지: 막대가 찍혔으면 회색 띠가 남는다
+    const right = ctx.getImageData(bmp.width - 3, Math.floor(bmp.height / 2), 1, 1).data;
+    const mid = ctx.getImageData(bmp.width / 2, Math.floor(bmp.height / 2), 1, 1).data;
+    return { h: bmp.height, bottom: Array.from(bottom.slice(0, 3)), sameRight: right.slice(0, 3).every((v, i) => Math.abs(v - mid[i]) < 30) };
+  });
+  check('멈춤: 다시 시작 → 끝까지 찍히고 스크롤 막대가 찍히지 않음', ok.h >= 3560 && ok.bottom.some((v) => v < 245) && ok.sameRight, JSON.stringify(ok));
+  await result.close();
+  await driver.close();
+}
+
 /** 편집기: 도구로 개체를 만들고 실행 취소·자르기·도장을 확인한다 */
 async function editorFlow(context, extId, id) {
   const ed = await context.newPage();
@@ -92,14 +145,33 @@ async function editorFlow(context, extId, id) {
   check('편집기: U로 주소·날짜 도장 켜기 → 결과 높이 증가', before !== after, `${before} → ${after}`);
   await ed.screenshot({ path: join(OUT, 'editor.png') });
 
-  // 자르기: C → 오른쪽 아래 핸들을 안쪽으로 → Enter
-  await ed.keyboard.press('c');
+  // 끄는 도중 Ctrl+Z는 무시되고, 손을 뗀 뒤 개체가 하나 늘어야 한다
+  {
+    const n0 = await ed.locator('#objects-list li').count();
+    await ed.keyboard.press('r');
+    const [x0, y0] = at(0.3, 0.4);
+    await ed.mouse.move(x0, y0);
+    await ed.mouse.down();
+    await ed.mouse.move(x0 + 60, y0 + 40, { steps: 3 });
+    await ed.keyboard.press('Control+z');
+    await ed.mouse.move(x0 + 120, y0 + 80, { steps: 3 });
+    await ed.mouse.up();
+    const n1 = await ed.locator('#objects-list li').count();
+    await ed.keyboard.press('Control+z');
+    const n2 = await ed.locator('#objects-list li').count();
+    check('편집기: 끄는 도중 Ctrl+Z 무시 → 손을 떼면 1개 늘고, 그 뒤 Ctrl+Z로 되돌아감', n1 === n0 + 1 && n2 === n0, `${n0} → ${n1} → ${n2}`);
+    await ed.keyboard.press('Escape');
+  }
+
+  // 자르기: 도구 막대의 자르기 버튼 → 오른쪽 변 핸들을 안쪽으로 → Enter
+  await ed.locator('#toolbar [data-tool="crop"]').click();
   await ed.waitForTimeout(200);
   await ed.screenshot({ path: join(OUT, 'editor-crop.png') });
   // 자르기 화면은 전체 맞춤이라 이미지가 가운데에 있다 → 오른쪽 변 가운데 핸들을 왼쪽으로 끈다
   const vb = await ed.locator('#view').boundingBox();
   const z = parseFloat(await ed.locator('#zoom-label').textContent()) / 100;
-  const ex = vb.x + vb.width / 2 + (1000 * z) / 2;
+  const imgW = Number((await status()).match(/^(\d+) x/)[1]);
+  const ex = vb.x + vb.width / 2 + (imgW * z) / 2;
   const ey = vb.y + vb.height / 2;
   await ed.mouse.move(ex, ey);
   await ed.mouse.down();
@@ -109,6 +181,7 @@ async function editorFlow(context, extId, id) {
   await ed.waitForTimeout(100);
   const cropped = await status();
   check('편집기: 자르기 적용 → 크기 줄어듦', cropped !== after, cropped);
+  check('편집기: Enter로 적용한 뒤 자르기 모드에 다시 들어가지 않음', (await ed.locator('#crop-bar').isHidden()) && (await ed.locator('#toolbar [data-tool="select"].active').count()) === 1);
   await ed.keyboard.press('Shift+?');
   check('편집기: Shift+?로 단축키 창', await ed.locator('#shortcuts-dialog').isVisible());
   await ed.screenshot({ path: join(OUT, 'editor-shortcuts.png') });
@@ -236,7 +309,14 @@ async function autoDownloadFlow(context, worker, extId, origin, path = '/dark.ht
   await driver.waitForTimeout(1500);
   context.off('page', onPage);
   const items = await worker.evaluate(async () => (await chrome.downloads.search({ orderBy: ['-startTime'] })).map((d) => ({ state: d.state, size: d.fileSize, error: d.error })));
-  check(`자동 내려받기(${path}): 완료 메시지 + 파일 1개 + 결과 탭 안 열림`, last.autoDownloaded === true && items.length === before + 1 && items[0].state === 'complete' && !resultOpened, `${JSON.stringify(last)} ${JSON.stringify(items[0])}`);
+  // 아주 긴 페이지는 여러 장으로 나뉘어(CAP-08) 장마다 파일이 하나씩 생긴다
+  const parts = await driver.evaluate(async () => {
+    const db = await new Promise((r) => { const q = indexedDB.open('hanjang-capture'); q.onsuccess = () => r(q.result); });
+    const all = await new Promise((r) => { const q = db.transaction('shots').objectStore('shots').getAll(); q.onsuccess = () => r(q.result); });
+    return all.sort((a, b) => b.createdAt - a.createdAt)[0].partCount;
+  });
+  const fresh = items.slice(0, items.length - before);
+  check(`자동 내려받기(${path}): 완료 메시지 + 장마다 파일 1개(${parts}장) + 결과 탭 안 열림`, last.autoDownloaded === true && fresh.length === parts && fresh.every((d) => d.state === 'complete') && !resultOpened, `${JSON.stringify(last)} ${JSON.stringify(fresh)}`);
   await driver.close();
   await worker.evaluate(() => chrome.storage.local.remove('settings'));
 }
@@ -251,7 +331,7 @@ async function galleryFlow(context, worker, extId) {
   const countText = await page.locator('#count').textContent();
   check('내 스크린샷: 보관 개수 표시 = 카드 수', countText === `이 기기에 보관: ${cards}` && cards >= 5, countText);
   const firstTitle = await page.locator('.card .name').first().textContent();
-  check('내 스크린샷: 최신 촬영이 맨 앞(마지막으로 찍은 큰 파일 페이지)', firstTitle === '큰 파일 페이지', firstTitle);
+  check('내 스크린샷: 최신 촬영이 맨 앞(마지막으로 찍은 큰 파일 페이지)', firstTitle.startsWith('큰 파일 페이지'), firstTitle);
   await page.locator('#search').fill('내부');
   check('내 스크린샷: 검색 "내부" → 1개', (await page.locator('.card').count()) === 1);
   await page.locator('#search').fill('');
@@ -323,6 +403,7 @@ async function main() {
       // pixels: [y(음수면 아래에서), 기대 색 판정, 설명]
       ['긴 페이지(스티키 머리글)', '/long.html', { minH: 3560, pixels: [[5, 'dark', '맨 위는 머리글'], [-5, 'not-white', '맨 아래까지 내용이 있음'], ['vh+5', 'not-dark', '두 번째 조각에 머리글이 반복되지 않음']] }],
       ['어두운 페이지', '/dark.html', { minH: 2400, pixels: [[-5, 'dark', '맨 아래도 어두운 바탕']] }],
+      ['본문이 스크롤되는 페이지', '/bodyscroll.html', { minH: 3000, pixels: [[-5, 'not-white', '맨 아래 블록까지 찍힘']] }],
       ['내부 스크롤 영역', '/inner.html', { minH: 2552, pixels: [[5, 'not-white', '앱 머리글 포함'], [-5, 'not-white', '바닥 막대 포함']] }],
     ]) {
       const page = context.pages()[0] ?? (await context.newPage());
@@ -401,12 +482,32 @@ async function main() {
       await driver.close();
     }
 
+    await pauseFlow(context, worker, extId, origin);
     await editorFlow(context, extId, shotIds['/long.html']);
     await exportFlow(context, worker, extId, shotIds['/long.html']);
     await optionsFlow(context, worker, extId);
     await autoDownloadFlow(context, worker, extId, origin);
     await autoDownloadFlow(context, worker, extId, origin, '/noise.html');
     await galleryFlow(context, worker, extId);
+
+    // 실제 툴바 팝업으로 시작 (CAP-01): chrome.action.openPopup()으로 팝업을 열면 팝업 코드가 촬영을 시작해야 한다
+    {
+      const page = context.pages()[0];
+      await page.goto(origin + '/long.html');
+      await page.bringToFront();
+      const resultPromise = context.waitForEvent('page', { predicate: (p) => p.url().includes('result.html?id='), timeout: 60000 });
+      const opened = await worker.evaluate(async () => {
+        try {
+          await chrome.action.openPopup();
+          return 'ok';
+        } catch (e) {
+          return String(e);
+        }
+      });
+      const result = await resultPromise.catch(() => null);
+      check('팝업: 툴바 팝업을 열면 곧바로 촬영 → 결과 탭 열림', opened === 'ok' && !!result, opened);
+      if (result) await result.close();
+    }
 
     // 보호 페이지 안내 (CAP-11): 확장 페이지 자신은 찍을 수 없는 주소이므로 안내가 나와야 한다
     const pop = await context.newPage();

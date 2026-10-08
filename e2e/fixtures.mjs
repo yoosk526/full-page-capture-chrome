@@ -24,6 +24,11 @@ export const PAGES = {
   for (let i = 0; i < img.data.length; i++) { x = (x * 1103515245 + 12345) & 0x7fffffff; img.data[i] = i % 4 === 3 ? 255 : x >> 23; }
   c.putImageData(img, 0, 0);
   </script></body></html>`,
+  // 본문(body)이 스크롤되는 페이지: html,body 높이 100% + body overflow-x:hidden
+  '/bodyscroll.html': `<!doctype html><html><head><title>본문 스크롤</title><style>
+    html,body{margin:0;height:100%}body{overflow-x:hidden;font:16px sans-serif}
+    .b{height:600px;font-size:40px}
+  </style></head><body>${Array.from({ length: 5 }, (_, i) => `<div class="b" style="background:hsl(${i * 70},55%,50%)">블록 ${i + 1}</div>`).join('')}</body></html>`,
   '/inner.html': `<!doctype html><html><head><title>내부 스크롤</title><style>
     html,body{margin:0;height:100%;overflow:hidden;font:16px sans-serif}
     .top{height:80px;background:#1565c0;color:#fff}
