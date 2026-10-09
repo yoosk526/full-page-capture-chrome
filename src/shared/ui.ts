@@ -41,20 +41,42 @@ export function openReport(): void {
   void chrome.tabs.create({ url: REPORT_URL });
 }
 
-/** 메뉴 열기/닫기: 버튼을 누르면 열리고 바깥을 누르거나 Esc를 누르면 닫힌다 */
-export function bindMenu(button: HTMLElement, menu: HTMLElement): void {
+/**
+ * 메뉴 열기/닫기: 버튼을 누르면 열리고 바깥을 누르거나 Esc를 누르면 닫힌다.
+ * hover를 켜면 마우스를 올리기만 해도 열리고, 버튼과 메뉴 밖으로 나가면 닫힌다 (PR #1 요청)
+ * anchor를 주면 그 요소의 오른쪽 끝에 맞춰 연다
+ */
+export function bindMenu(button: HTMLElement, menu: HTMLElement, opts: { hover?: boolean; anchor?: HTMLElement } = {}): void {
+  const place = () => {
+    document.querySelectorAll<HTMLElement>('.menu').forEach((m) => {
+      if (m !== menu) m.hidden = true;
+    });
+    const r = (opts.anchor ?? button).getBoundingClientRect();
+    menu.hidden = false;
+    const left = opts.anchor ? r.right - menu.offsetWidth : Math.min(r.left, window.innerWidth - menu.offsetWidth - 8);
+    menu.style.left = `${Math.max(8, left)}px`;
+    menu.style.top = `${r.bottom + 6}px`;
+  };
   button.addEventListener('click', (e) => {
     e.stopPropagation();
-    const open = menu.hidden;
-    document.querySelectorAll<HTMLElement>('.menu').forEach((m) => (m.hidden = true));
-    if (open) {
-      const r = button.getBoundingClientRect();
-      menu.hidden = false;
-      const left = Math.min(r.left, window.innerWidth - menu.offsetWidth - 8);
-      menu.style.left = `${Math.max(8, left)}px`;
-      menu.style.top = `${r.bottom + 4}px`;
-    }
+    if (menu.hidden || opts.hover) place();
+    else menu.hidden = true;
   });
+  if (opts.hover) {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const keep = () => clearTimeout(timer);
+    const leave = () => {
+      clearTimeout(timer);
+      timer = setTimeout(() => (menu.hidden = true), 250);
+    };
+    button.addEventListener('mouseenter', () => {
+      keep();
+      place();
+    });
+    button.addEventListener('mouseleave', leave);
+    menu.addEventListener('mouseenter', keep);
+    menu.addEventListener('mouseleave', leave);
+  }
   menu.addEventListener('click', (e) => e.stopPropagation());
   document.addEventListener('click', () => (menu.hidden = true));
   document.addEventListener('keydown', (e) => {

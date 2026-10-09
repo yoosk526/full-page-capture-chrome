@@ -29,15 +29,18 @@ const viewport = $('#viewport');
 function applyZoom(z: number): void {
   if (!shot) return;
   zoom = z;
-  img.style.width = `${Math.round(outSize.w * zoom)}px`;
-  img.style.height = `${Math.round(outSize.h * zoom)}px`;
+  // 내림으로 맞춰야 화면 맞춤에서 0.5px 차이로 스크롤 막대가 생기지 않는다
+  img.style.width = `${Math.floor(outSize.w * zoom)}px`;
+  img.style.height = `${Math.floor(outSize.h * zoom)}px`;
   $('#zoom-label').textContent = formatZoom(zoom);
 }
 
 function fit(): number {
   if (!shot) return 1;
-  const pad = 48;
-  return fitZoom(outSize.w, outSize.h, viewport.clientWidth - pad, viewport.clientHeight - pad);
+  const cs = getComputedStyle(viewport);
+  const padX = parseFloat(cs.paddingLeft) + parseFloat(cs.paddingRight);
+  const padY = parseFloat(cs.paddingTop) + parseFloat(cs.paddingBottom);
+  return fitZoom(outSize.w, outSize.h, viewport.clientWidth - padX, viewport.clientHeight - padY);
 }
 
 async function renderParts(current: ShotRecord): Promise<void> {
@@ -66,6 +69,7 @@ async function load(): Promise<void> {
   }
   document.title = `${shot.title || t.common.untitled} - ${t.appName}`;
   $('#file-name').textContent = shotBaseName(shot);
+  $('#file-name').title = shotBaseName(shot);
   const out = outputLayout(shot.doc, shot.width, shot.height);
   $('#image-size').textContent = t.common.sizePx(out.width, out.height);
   outSize = { w: out.width, h: out.height };
@@ -108,7 +112,8 @@ $('#delete-btn').addEventListener('click', async () => {
 });
 
 const menu = $('#save-menu');
-bindMenu($('#save-more'), menu);
+// 화살표에 마우스를 올리기만 해도 형식 메뉴가 열린다 (PR #1 요청)
+bindMenu($('#save-more'), menu, { hover: true, anchor: $('#save-split') });
 menu.querySelectorAll<HTMLButtonElement>('button[data-format]').forEach((b) =>
   b.addEventListener('click', () => {
     menu.hidden = true;

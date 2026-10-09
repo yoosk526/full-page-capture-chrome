@@ -5,6 +5,10 @@
   --muted: #5f6b7a;
   --border: #dde1e7;
   --accent: #2b6cde;
+  /* 저장 같은 주요 버튼: 검정 (PR #1 요청) */
+  --primary: #16181d;
+  --primary-hover: #2d3038;
+  --pill: 999px;
   --accent-text: #ffffff;
   --accent-soft: #e7efff;
   --danger: #d33a2c;
@@ -14,7 +18,7 @@
   --shadow: 0 6px 24px rgba(20, 30, 50, 0.14);
   color-scheme: light;
   font-family: system-ui, -apple-system, 'Segoe UI', 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif;
-  font-size: 14px;
+  font-size: 15px;
   color: var(--text);
   background: var(--bg);
 }
@@ -42,12 +46,15 @@ button {
 .btn {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  height: 34px;
-  padding: 0 12px;
+  gap: 7px;
+  height: 38px;
+  padding: 0 16px;
   border: 1px solid var(--border);
-  border-radius: var(--radius);
+  /* 모든 버튼은 양 끝이 반원인 모양 (PR #1 요청) */
+  border-radius: var(--pill);
   background: var(--surface);
+  font-size: 15px;
+  font-weight: 500;
   white-space: nowrap;
 }
 
@@ -61,13 +68,13 @@ button {
 }
 
 .btn.primary {
-  background: var(--accent);
-  border-color: var(--accent);
-  color: var(--accent-text);
+  background: var(--primary);
+  border-color: var(--primary);
+  color: #fff;
 }
 
 .btn.primary:hover:not(:disabled) {
-  background: #215bc2;
+  background: var(--primary-hover);
 }
 
 .btn.danger {
@@ -78,12 +85,17 @@ button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 34px;
-  height: 34px;
+  width: 38px;
+  height: 38px;
   padding: 0;
   border: 1px solid transparent;
-  border-radius: var(--radius);
+  border-radius: 50%;
   background: transparent;
+}
+
+.icon-btn svg {
+  width: 20px;
+  height: 20px;
 }
 
 .icon-btn:hover:not(:disabled) {
@@ -106,7 +118,7 @@ button {
   bottom: 28px;
   transform: translateX(-50%);
   padding: 10px 16px;
-  border-radius: var(--radius);
+  border-radius: var(--pill);
   background: #1f2733;
   color: #fff;
   box-shadow: var(--shadow);
@@ -125,7 +137,7 @@ button {
   min-width: 200px;
   padding: 6px;
   border: 1px solid var(--border);
-  border-radius: var(--radius);
+  border-radius: 14px;
   background: var(--surface);
   box-shadow: var(--shadow);
   z-index: 500;
@@ -140,10 +152,11 @@ button {
   align-items: center;
   gap: 8px;
   width: 100%;
-  padding: 8px 10px;
+  padding: 9px 12px;
   border: 0;
-  border-radius: 6px;
+  border-radius: 10px;
   background: transparent;
+  font-size: 15px;
   text-align: left;
 }
 

@@ -329,7 +329,7 @@ async function galleryFlow(context, worker, extId) {
   await page.waitForSelector('.card');
   const cards = await page.locator('.card').count();
   const countText = await page.locator('#count').textContent();
-  check('내 스크린샷: 보관 개수 표시 = 카드 수', countText === `이 기기에 보관: ${cards}` && cards >= 5, countText);
+  check('내 스크린샷: 보관 개수 표시 = 카드 수', countText === `이 기기에 보관됨: ${cards}` && cards >= 5, countText);
   const firstTitle = await page.locator('.card .name').first().textContent();
   check('내 스크린샷: 최신 촬영이 맨 앞(마지막으로 찍은 큰 파일 페이지)', firstTitle.startsWith('큰 파일 페이지'), firstTitle);
   await page.locator('#search').fill('내부');
@@ -356,7 +356,7 @@ async function galleryFlow(context, worker, extId) {
   check('내 스크린샷: 카드 눌러 빼기 → 선택됨: 1', (await page.locator('#selected-count').textContent()) === '선택됨: 1');
   await page.locator('#delete-selected').click();
   await page.waitForFunction((n) => document.querySelectorAll('.card').length === n, cards - 1);
-  check('내 스크린샷: 선택 삭제 → 1개 줄어듦', (await page.locator('#count').textContent()) === `이 기기에 보관: ${cards - 1}`);
+  check('내 스크린샷: 선택 삭제 → 1개 줄어듦', (await page.locator('#count').textContent()) === `이 기기에 보관됨: ${cards - 1}`);
   await page.close();
 }
 
