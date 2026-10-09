@@ -4,7 +4,7 @@ import { DEFAULT_SETTINGS, SCROLL_DELAY_OPTIONS, WAIT_IMAGES_OPTIONS, type PdfPa
 import { applyI18n, t } from '../../shared/i18n';
 import { loadSettings, saveSettings } from '../../shared/settingsStore';
 import { icons } from '../../shared/icons';
-import { $, applyIcons, openPage, openReport, toast } from '../../shared/ui';
+import { $, applyIcons, openReport, toast } from '../../shared/ui';
 
 applyI18n();
 applyIcons();
@@ -128,7 +128,7 @@ async function main(): Promise<void> {
     b.addEventListener('click', () => void save({ pdfOrientation: b.dataset.value as Settings['pdfOrientation'] })),
   );
   $('#report-btn').addEventListener('click', openReport);
-  $('#gallery-btn').addEventListener('click', () => openPage('gallery.html'));
+  $('#gallery-btn').addEventListener('click', () => location.assign('gallery.html'));
   $('#shortcut-btn').addEventListener('click', () => void chrome.tabs.create({ url: 'chrome://extensions/shortcuts' }));
   await renderShortcut();
   window.addEventListener('focus', () => void renderShortcut());

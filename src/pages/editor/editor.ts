@@ -21,6 +21,8 @@ import {
   removeObject,
   removeObjects,
   cloneManyInto,
+  resetDoc,
+  hasEdits,
   resizeObject,
   updateObject,
   type Handle,
@@ -37,7 +39,7 @@ import { applyI18n, t } from '../../shared/i18n';
 import { icons, type IconName } from '../../shared/icons';
 import { loadSettings, saveSettings } from '../../shared/settingsStore';
 import type { ShotRecord } from '../../shared/types';
-import { $, applyIcons, bindMenu, isMac, openReport } from '../../shared/ui';
+import { $, applyIcons, bindMenu, isMac, openReport, toast } from '../../shared/ui';
 import { loadSource } from '../../render/exportShot';
 import { fontFor, layoutFor, measureText, renderDoc, renderThumb, type RenderSource } from '../../render/renderDoc';
 import { copyShot, printShot, saveShot } from '../shared/shotActions';
@@ -345,7 +347,7 @@ function setTool(next: ToolId): void {
     cropRect = doc().crop ?? { x: 0, y: 0, w: shot.width, h: shot.height };
     zoomBeforeCrop = zoom;
     // 자르기 화면에서는 전체가 보이게 비율을 맞춘다 (EDT-02)
-    setZoom(fitZoom(shot.width, shot.height, stage.clientWidth - MARGIN * 2, stage.clientHeight - MARGIN * 2 - 60));
+    setZoom(fitZoom(shot.width, shot.height, stage.clientWidth - MARGIN * 2, stage.clientHeight - MARGIN * 2));
     $('#crop-bar').hidden = false;
   }
   document.querySelectorAll<HTMLElement>('#toolbar [data-tool]').forEach((b) => b.classList.toggle('active', b.dataset.tool === tool));
@@ -642,7 +644,8 @@ canvas.addEventListener('dblclick', (e) => {
   if (hit && objectById(hit)?.type === 'text') startTextEdit(hit, false);
 });
 
-canvas.addEventListener(
+// 캔버스 바깥(그림 둘레 여백)에서도 Cmd/Ctrl+휠 확대가 되도록 그림 영역 전체에서 받는다 (PR #1 두 번째 요청)
+stage.parentElement!.addEventListener(
   'wheel',
   (e) => {
     e.preventDefault();
@@ -969,6 +972,7 @@ function renderStatus(): void {
   $('#status').textContent = t.editor.status(L.width, L.height, doc().objects.length);
   $('#page-url').textContent = shot.url;
   $('#page-url').title = shot.url;
+  ($('#reset-btn') as HTMLButtonElement).disabled = !hasEdits(doc()) || tool === 'crop';
 }
 
 // ---- 더보기 메뉴: 주소·날짜 도장 (EXP-06) ----
@@ -1213,6 +1217,13 @@ async function main(): Promise<void> {
   $('#save-btn').addEventListener('click', () => void doExport(fileFormat));
   $('#crop-apply').addEventListener('click', () => exitCrop(true));
   $('#crop-cancel').addEventListener('click', () => exitCrop(false));
+  // 모두 초기화: 한 단계로 기록하므로 되돌리기로 되살릴 수 있다 (PR #1 두 번째 요청)
+  $('#reset-btn').addEventListener('click', () => {
+    finishTextEdit();
+    selectOnly(null);
+    commit(resetDoc(doc()));
+    toast(t.editor.resetDone);
+  });
   const saveMenu = $('#save-menu');
   bindMenu($('#save-more'), saveMenu);
   saveMenu.querySelectorAll<HTMLButtonElement>('button[data-format]').forEach((b) =>

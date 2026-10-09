@@ -1,5 +1,5 @@
 // 확장 프로그램 아이콘(PNG)을 만든다. 외부 패키지 없이 Node 기본 zlib만 쓴다.
-// 모양: 파란 둥근 사각형 위에 긴 흰 종이(전체 페이지)와 아래로 향하는 화살표
+// 모양: 파란 둥근 사각형 위에 흰 카메라 (PR #1 두 번째 요청: 한눈에 카메라로 보이게)
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { deflateSync } from 'node:zlib';
 
@@ -58,17 +58,15 @@ const inRoundRect = (x, y, x0, y0, x1, y1, r) => {
 function colorAt(x, y) {
   const BLUE = [43, 108, 222, 255];
   const WHITE = [255, 255, 255, 255];
-  const LINE = [170, 192, 232, 255];
   if (!inRoundRect(x, y, 0.02, 0.02, 0.98, 0.98, 0.2)) return [0, 0, 0, 0];
-  // 종이
-  if (inRoundRect(x, y, 0.27, 0.12, 0.73, 0.7, 0.05)) {
-    for (const ly of [0.24, 0.36, 0.48]) if (y > ly && y < ly + 0.06 && x > 0.35 && x < 0.65) return LINE;
-    return WHITE;
-  }
-  // 아래 화살표
-  const ax = Math.abs(x - 0.5);
-  if (y > 0.74 && y < 0.9 && ax < 0.17 - (y - 0.74) * 1.05 && ax > 0.17 - (y - 0.74) * 1.05 - 0.09) return WHITE;
-  return BLUE;
+  const d = Math.hypot(x - 0.5, y - 0.555);
+  const inBody = inRoundRect(x, y, 0.15, 0.3, 0.85, 0.78, 0.08);
+  // 몸통 위 셔터 부분(사다리꼴)
+  const inTop = y >= 0.21 && y <= 0.31 && Math.abs(x - 0.5) <= 0.12 + (y - 0.21) * 0.6;
+  if (!inBody && !inTop) return BLUE;
+  // 렌즈: 파란 고리 + 흰 안쪽
+  if (d <= 0.175 && d > 0.105) return BLUE;
+  return WHITE;
 }
 
 mkdirSync('public/icons', { recursive: true });

@@ -1,12 +1,12 @@
 // 결과 화면 (RES-01 ~ RES-08)
-import { fitZoom, formatZoom, zoomIn, zoomOut } from '../../core/zoom';
+import { clampZoom, fitZoom, formatZoom, zoomIn, zoomOut } from '../../core/zoom';
 import { outputLayout } from '../../core/stamp';
 import type { FileFormat } from '../../core/settings';
 import { deleteShots, getShot, listGroup } from '../../shared/db';
 import { applyI18n, t } from '../../shared/i18n';
 import { loadSettings } from '../../shared/settingsStore';
 import type { ShotRecord } from '../../shared/types';
-import { $, applyIcons, bindMenu, openPage, openReport } from '../../shared/ui';
+import { $, applyIcons, bindMenu, openReport } from '../../shared/ui';
 import { renderShotPng, shotBaseName } from '../../render/exportShot';
 import { copyShot, printShot, saveShot } from '../shared/shotActions';
 
@@ -101,8 +101,9 @@ $('#zoom-fit').addEventListener('click', () => applyZoom(fit()));
 $('#edit-btn').addEventListener('click', () => location.assign(`editor.html?id=${id}`));
 $('#copy-btn').addEventListener('click', () => shot && void copyShot(shot));
 $('#print-btn').addEventListener('click', () => shot && void printShot(shot));
-$('#gallery-btn').addEventListener('click', () => openPage('gallery.html'));
-$('#settings-btn').addEventListener('click', () => chrome.runtime.openOptionsPage());
+// 새 탭을 만들지 않고 이 탭에서 화면을 바꾼다 (PR #1 두 번째 요청)
+$('#gallery-btn').addEventListener('click', () => location.assign('gallery.html'));
+$('#settings-btn').addEventListener('click', () => location.assign('options.html'));
 $('#report-btn').addEventListener('click', openReport);
 $('#delete-btn').addEventListener('click', async () => {
   if (!shot || !confirm(t.result.deleteConfirm)) return;
@@ -110,6 +111,24 @@ $('#delete-btn').addEventListener('click', async () => {
   // TODO(미확인): 지운 뒤 어느 화면으로 가는지 모른다. 내 스크린샷 화면으로 간다.
   location.replace('gallery.html');
 });
+
+// Cmd(Windows는 Ctrl)를 누른 채 휠을 굴리면 마우스가 가리키는 곳을 중심으로 확대·축소한다 (PR #1 두 번째 요청)
+viewport.addEventListener(
+  'wheel',
+  (e) => {
+    if (!shot || !(e.ctrlKey || e.metaKey)) return;
+    e.preventDefault();
+    const r = viewport.getBoundingClientRect();
+    const ax = e.clientX - r.left;
+    const ay = e.clientY - r.top;
+    const fx = (viewport.scrollLeft + ax) / viewport.scrollWidth;
+    const fy = (viewport.scrollTop + ay) / viewport.scrollHeight;
+    applyZoom(clampZoom(zoom * Math.exp(-e.deltaY * 0.002)));
+    viewport.scrollLeft = fx * viewport.scrollWidth - ax;
+    viewport.scrollTop = fy * viewport.scrollHeight - ay;
+  },
+  { passive: false },
+);
 
 const menu = $('#save-menu');
 // 화살표에 마우스를 올리기만 해도 형식 메뉴가 열린다 (PR #1 요청)

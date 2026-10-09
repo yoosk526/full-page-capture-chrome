@@ -9,6 +9,8 @@ import {
   cloneManyInto,
   moveObjects,
   removeObjects,
+  resetDoc,
+  hasEdits,
   hitTest,
   moveLayer,
   resizeObject,
@@ -172,5 +174,17 @@ describe('여러 개 선택한 개체 다루기 (PR #1 요청: Shift 다중 선�
     const r = cloneManyInto(d, [d.objects[1], d.objects[0]]);
     expect(numbers(r.doc)).toEqual([1, 2, 3, 4]);
     expect(r.ids).toHaveLength(2);
+  });
+});
+
+describe('resetDoc: 편집한 내용 모두 초기화 (PR #1 두 번째 요청)', () => {
+  // 목적: 초기화 뒤에도 자르기·번호·주소 띠 중 일부가 남는 결함, 날짜 형식 선택까지 지워지는 결함을 막는다
+  it('[EP] TC-RESET-01 개체·자르기·주소 띠가 있는 문서 → 편집 없음, 다음 번호 1부터, 날짜 형식 유지', () => {
+    let d: EditorDoc = { ...addBadge(base(), box, '#000', 'b1'), crop: { x: 0, y: 0, w: 50, h: 50 }, stamp: { position: 'top', dateFormat: 'iso' } };
+    d = addObject(d, rect('r1'));
+    const r = resetDoc(d);
+    expect(hasEdits(r)).toBe(false);
+    expect(r.badgeCounter).toBe(0);
+    expect(r.stamp.dateFormat).toBe('iso');
   });
 });

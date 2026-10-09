@@ -5,9 +5,9 @@
   --muted: #5f6b7a;
   --border: #dde1e7;
   --accent: #2b6cde;
-  /* 저장 같은 주요 버튼: 검정 (PR #1 요청) */
-  --primary: #16181d;
-  --primary-hover: #2d3038;
+  /* 저장 같은 주요 버튼: 파랑 계열로 통일 (PR #1 두 번째 요청) */
+  --primary: #2b6cde;
+  --primary-hover: #2259bd;
   --pill: 999px;
   --accent-text: #ffffff;
   --accent-soft: #e7efff;

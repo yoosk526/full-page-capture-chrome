@@ -22,8 +22,10 @@ export const icons = {
   trash: svg('<path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/>'),
   flag: svg('<path d="M5.5 4h13A2.5 2.5 0 0 1 21 6.5v8a2.5 2.5 0 0 1-2.5 2.5H11l-5 4v-4h-.5A2.5 2.5 0 0 1 3 14.5v-8A2.5 2.5 0 0 1 5.5 4z"/><path d="M12 7.5v4.5M12 14.8v.2"/>'),
   back: svg('<path d="M15 5l-7 7 7 7"/>'),
-  undo: svg('<path d="M9 7H4v5"/><path d="M4 12a8 8 0 1 1 3 6"/>'),
-  redo: svg('<path d="M15 7h5v5"/><path d="M20 12a8 8 0 1 0-3 6"/>'),
+  // 되돌리기 화살촉이 곡선과 붙어 뭉개지지 않게 화살촉과 몸통을 따로 그린다 (PR #1 두 번째 요청)
+  undo: svg('<path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/>'),
+  redo: svg('<path d="m15 14 5-5-5-5"/><path d="M20 9H9.5a5.5 5.5 0 0 0 0 11H13"/>'),
+  reset: svg('<path d="M3 12a9 9 0 1 0 2.64-6.36L3 8.3"/><path d="M3 3.5v4.8h4.8"/>'),
   more: svg('<circle cx="5" cy="12" r="1.2"/><circle cx="12" cy="12" r="1.2"/><circle cx="19" cy="12" r="1.2"/>'),
   expand: svg('<path d="M14 4h6v6M10 20H4v-6M20 4l-7 7M4 20l7-7"/>'),
   check: svg('<path d="M5 12l5 5 9-10"/>'),

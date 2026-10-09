@@ -203,6 +203,10 @@ async function editorFlow(context, extId, id) {
   await ed.locator('#toolbar [data-tool="crop"]').click();
   await ed.waitForTimeout(200);
   await ed.screenshot({ path: join(OUT, 'editor-crop.png') });
+  // 자르기 버튼은 그림 영역 아래 줄에 있어 그림을 가리지 않는다 (PR #1 두 번째 요청)
+  const cropBarBox = await ed.locator('#crop-bar').boundingBox();
+  const stageBox = await ed.locator('.stage-wrap').boundingBox();
+  check('편집기: 자르기 버튼이 그림 영역과 겹치지 않음', !!cropBarBox && cropBarBox.y >= stageBox.y + stageBox.height - 0.5, JSON.stringify({ cropBarBox, stageBox }));
   // 자르기 화면은 전체 맞춤이라 이미지가 가운데에 있다 → 오른쪽 변 가운데 핸들을 왼쪽으로 끈다
   const vb = await ed.locator('#view').boundingBox();
   const z = parseFloat(await ed.locator('#zoom-label').textContent()) / 100;
@@ -223,6 +227,31 @@ async function editorFlow(context, extId, id) {
   await ed.screenshot({ path: join(OUT, 'editor-shortcuts.png') });
   await ed.keyboard.press('Escape');
 
+  // 모두 초기화 → 개체·자르기가 모두 사라지고, 되돌리기로 되살아남 (PR #1 두 번째 요청)
+  const beforeReset = await status();
+  await ed.locator('#reset-btn').click();
+  await ed.waitForTimeout(100);
+  const afterReset = await status();
+  const resetDisabled = await ed.locator('#reset-btn').isDisabled();
+  await ed.keyboard.press('Control+z');
+  await ed.waitForTimeout(100);
+  check(
+    '편집기: 모두 초기화 → 개체 0개·원래 크기, 버튼 꺼짐, Ctrl+Z로 되살아남',
+    /개체 0개|0개/.test(afterReset) && afterReset !== beforeReset && resetDisabled && (await status()) === beforeReset,
+    `${beforeReset} → ${afterReset} → ${await status()}`,
+  );
+
+  // Ctrl+휠로 확대 (PR #1 두 번째 요청)
+  const zBefore = await ed.locator('#zoom-label').textContent();
+  const vb2 = await ed.locator('.stage-wrap').boundingBox();
+  await ed.mouse.move(vb2.x + vb2.width / 2, vb2.y + vb2.height / 2);
+  await ed.keyboard.down('Control');
+  await ed.mouse.wheel(0, -200);
+  await ed.keyboard.up('Control');
+  await ed.waitForTimeout(150);
+  const zAfter = await ed.locator('#zoom-label').textContent();
+  check('편집기: Ctrl+휠 위로 → 확대', parseFloat(zAfter) > parseFloat(zBefore), `${zBefore} → ${zAfter}`);
+
   // 뒤로 → 결과 화면에 편집 내용 반영 (RES-08)
   await ed.locator('#back-btn').click();
   await ed.waitForURL(/result\.html/);
@@ -231,6 +260,25 @@ async function editorFlow(context, extId, id) {
   const size = await ed.locator('#image-size').textContent();
   check('결과 화면: 편집(자르기) 반영된 크기', cropped.startsWith(size.replace(' px', '')), `${size} / ${cropped}`);
   await ed.screenshot({ path: join(OUT, 'result-edited.png') });
+
+  // 결과 화면: Ctrl+휠 확대, 내 스크린샷·설정은 같은 탭에서 열림 (PR #1 두 번째 요청)
+  const rz0 = await ed.locator('#zoom-label').textContent();
+  const pv = await ed.locator('#viewport').boundingBox();
+  await ed.mouse.move(pv.x + pv.width / 2, pv.y + pv.height / 2);
+  await ed.keyboard.down('Control');
+  await ed.mouse.wheel(0, 200);
+  await ed.keyboard.up('Control');
+  await ed.waitForTimeout(150);
+  const rz1 = await ed.locator('#zoom-label').textContent();
+  check('결과 화면: Ctrl+휠 아래로 → 축소', parseFloat(rz1) < parseFloat(rz0), `${rz0} → ${rz1}`);
+  const pagesBefore = context.pages().length;
+  await ed.locator('#gallery-btn').click();
+  await ed.waitForURL(/gallery\.html/);
+  await ed.goBack();
+  await ed.waitForURL(/result\.html/);
+  await ed.locator('#settings-btn').click();
+  await ed.waitForURL(/options\.html/);
+  check('결과 화면: 내 스크린샷·설정 버튼 → 새 탭 없이 같은 탭에서 바뀜', context.pages().length === pagesBefore, `${pagesBefore} → ${context.pages().length}`);
   await ed.close();
 }
 
@@ -307,7 +355,7 @@ async function optionsFlow(context, worker, extId) {
   await page.waitForTimeout(200);
   check('설정: 스크롤 사이 기다리기 300ms 저장', (await stored()).scrollDelayMs === 300);
   const sc = (await page.locator('#shortcut-list').innerText()).replace(/\s+/g, ' ');
-  check('설정: 단축키 3가지 표시(전체 Ctrl+Shift+K, 일부 Ctrl+Shift+E)', /페이지 전체 찍기 Ctrl\+Shift\+K/.test(sc) && /페이지 일부 골라 찍기 Ctrl\+Shift\+E/.test(sc) && /도구 창 열기/.test(sc), sc);
+  check('설정: 단축키 3가지 표시(전체 Ctrl+Shift+K, 일부 Ctrl+Shift+E)', /페이지 전체 찍기 Ctrl\+Shift\+K/.test(sc) && /페이지 일부 찍기 Ctrl\+Shift\+E/.test(sc) && /도구 창 열기/.test(sc), sc);
   await page.locator('#papers .paper').nth(0).click();
   await page.waitForTimeout(150);
   check('설정: 전체 이미지 용지에서는 방향 선택이 꺼짐', await page.locator('#orientation button').first().isDisabled());
@@ -494,6 +542,35 @@ async function popupFlow(context, worker, origin) {
     await result.close();
   }
 
+  // 끄는 중 화면 아래 끝에 머물면 자동 스크롤되고, 화면보다 긴 영역이 이어 붙여 찍힌다 (Q43 답변 ②)
+  await page.evaluate(() => window.scrollTo(0, 0));
+  await page.bringToFront();
+  await worker.evaluate(() => chrome.action.openPopup());
+  pop = await attachPopup(context, page);
+  await new Promise((r) => setTimeout(r, 300));
+  await pop.eval(`document.getElementById('choose-area').click()`);
+  await page.waitForFunction(() => !!document.getElementById('__hanjang-area'), null, { timeout: 5000 });
+  const vh = await page.evaluate(() => innerHeight);
+  resultPromise = context.waitForEvent('page', { predicate: (p) => p.url().includes('result.html?id='), timeout: 60000 });
+  await page.mouse.move(100, 200);
+  await page.mouse.down();
+  await page.mouse.move(400, vh - 5, { steps: 6 });
+  await new Promise((r) => setTimeout(r, 1200));
+  const scrolled = await page.evaluate(() => scrollY);
+  await page.mouse.up();
+  result = await resultPromise.catch(() => null);
+  const tall = result ? await shotSize(result) : null;
+  check('영역 고르기: 아래 끝에 머물면 자동 스크롤', scrolled > 0, `scrollY=${scrolled}`);
+  check(
+    '영역 고르기: 화면보다 긴 영역 → 스크롤하며 이어 붙여 찍음',
+    !!tall && tall.w === 300 * dpr && tall.h >= (vh - 5 + scrolled - 200) * dpr - 2 && tall.h > vh * dpr,
+    JSON.stringify({ tall, vh, scrolled }),
+  );
+  if (result) {
+    await result.screenshot({ path: join(OUT, 'result-area-tall.png') });
+    await result.close();
+  }
+
   // Esc로 영역 고르기 취소
   await page.bringToFront();
   await worker.evaluate(() => chrome.action.openPopup());
@@ -506,7 +583,7 @@ async function popupFlow(context, worker, origin) {
 }
 
 /** 일괄 촬영 (SET-32, PR #1 요청): 주소 목록을 차례로 열어 찍고 내 스크린샷에 보관 */
-async function batchFlow(context, extId, origin) {
+async function batchFlow(context, worker, extId, origin) {
   const countShots = async (p) =>
     p.evaluate(async () => {
       const db = await new Promise((r) => {
@@ -534,6 +611,18 @@ async function batchFlow(context, extId, origin) {
   const after = await countShots(page);
   check('일괄 촬영: 주소 3개 성공, 찍을 수 없는 줄 1개는 건너뜀', text === '끝났어요. 성공 3개' && after - before === 3 && note.includes('1개'), `${text} / ${note} / +${after - before}`);
   await page.screenshot({ path: join(OUT, 'batch.png'), fullPage: true });
+
+  // "파일 자동 다운로드"가 켜져 있으면 일괄 촬영 결과도 파일로 내려받는다 (Q44 답변 ②)
+  await worker.evaluate(() => chrome.storage.local.set({ settings: { autoDownload: true, fileFormat: 'png' } }));
+  const dlBefore = await worker.evaluate(async () => (await chrome.downloads.search({})).length);
+  await page.locator('#urls').fill(`${origin}/dark.html`);
+  await page.locator('#start-btn').click();
+  await page.waitForFunction(() => !/끝났어요/.test(document.getElementById('progress-text')?.textContent ?? ''), null, { timeout: 10000 });
+  await page.waitForFunction(() => /끝났어요|그만뒀어요/.test(document.getElementById('progress-text')?.textContent ?? ''), null, { timeout: 60000 });
+  await page.waitForTimeout(1000);
+  const dl = await worker.evaluate(async () => (await chrome.downloads.search({ orderBy: ['-startTime'] })).map((d) => d.state));
+  check('일괄 촬영: 자동 다운로드 켜짐 → 파일로도 내려받음', dl.length - dlBefore === 1 && dl[0] === 'complete', `${dl.length - dlBefore} ${dl[0]}`);
+  await worker.evaluate(() => chrome.storage.local.remove('settings'));
   await page.close();
 }
 
@@ -669,7 +758,7 @@ async function main() {
 
     // 실제 툴바 팝업 (CAP-01, PR #1): 고르는 창 → 페이지 전체 / 페이지 일부
     await popupFlow(context, worker, origin);
-    await batchFlow(context, extId, origin);
+    await batchFlow(context, worker, extId, origin);
 
     // 보호 페이지 안내 (CAP-11): 확장 페이지 자신은 찍을 수 없는 주소이므로 안내가 나와야 한다
     const pop = await context.newPage();

@@ -52,13 +52,19 @@
 
     <div class="body">
       <nav class="toolbar" id="toolbar"></nav>
-      <div class="stage-wrap">
-        <div class="stage" id="stage"><div class="sizer" id="sizer"></div></div>
-        <canvas id="view"></canvas>
-        <textarea id="text-input" spellcheck="false" hidden></textarea>
-        <div class="crop-bar" id="crop-bar" hidden>
-          <button class="btn" id="crop-cancel"><span data-i18n="editor.cropCancel"></span></button>
-          <button class="btn primary" id="crop-apply"><span data-i18n="editor.cropApply"></span></button>
+      <div class="stage-col">
+        <div class="stage-wrap">
+          <div class="stage" id="stage"><div class="sizer" id="sizer"></div></div>
+          <canvas id="view"></canvas>
+          <textarea id="text-input" spellcheck="false" hidden></textarea>
+        </div>
+        <!-- 그림 아래 줄: 자르기 버튼이 그림을 가리지 않도록 따로 둔다 (PR #1 두 번째 요청) -->
+        <div class="stage-foot">
+          <div class="crop-bar" id="crop-bar" hidden>
+            <button class="btn" id="crop-cancel"><span data-i18n="editor.cropCancel"></span></button>
+            <button class="btn primary" id="crop-apply"><span data-i18n="editor.cropApply"></span></button>
+          </div>
+          <button class="btn" id="reset-btn" data-icon="reset"><span data-i18n="editor.resetAll"></span></button>
         </div>
       </div>
       <aside class="panel">

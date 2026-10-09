@@ -1,6 +1,6 @@
 {
   "name": "full-page-capture-chrome",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "private": true,
   "description": "한장캡처: 전체 페이지 스크롤 캡처 + 편집기 (크롬 확장 프로그램)",
   "type": "module",

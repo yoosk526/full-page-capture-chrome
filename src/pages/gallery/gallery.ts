@@ -167,7 +167,7 @@ $('#close-select').addEventListener('click', exitSelecting);
 $('#save-selected').addEventListener('click', () => void saveSelected());
 $('#delete-selected').addEventListener('click', () => void deleteSelected());
 $('#search').addEventListener('input', render);
-$('#settings-btn').addEventListener('click', () => chrome.runtime.openOptionsPage());
+$('#settings-btn').addEventListener('click', () => location.assign('options.html'));
 $('#batch-btn').addEventListener('click', () => openPage('batch.html'));
 document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape' && selecting) exitSelecting();

@@ -307,6 +307,11 @@ function scalePath(o: PathObj, from: Rect, to: Rect): PathObj {
 }
 
 /** 문서에 편집 내용이 있는지 (편집하지 않았으면 원본 PNG를 그대로 쓴다) */
+/** 편집한 내용을 모두 지운 문서 (PR #1 두 번째 요청: 모두 초기화). 날짜 형식 선택은 남긴다 */
+export function resetDoc(doc: EditorDoc): EditorDoc {
+  return { ...doc, crop: null, objects: [], badgeCounter: 0, stamp: { ...doc.stamp, position: 'none' } };
+}
+
 export function hasEdits(doc: EditorDoc | undefined): boolean {
   return !!doc && (doc.objects.length > 0 || doc.crop !== null || doc.stamp.position !== 'none');
 }

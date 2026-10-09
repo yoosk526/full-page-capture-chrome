@@ -135,6 +135,8 @@ export const ko = {
     status: (w: number, h: number, n: number) => `${w} x ${h} px, 개체 ${n}개`,
     cropCancel: '취소',
     cropApply: '자르기 적용',
+    resetAll: '모두 초기화',
+    resetDone: '편집한 내용을 모두 지웠어요. 되돌리기(⌘Z / Ctrl+Z)로 되살릴 수 있어요.',
     textPlaceholder: '글자를 입력하세요',
     stampHeading: '주소와 날짜 표시',
     stampPositions: {
@@ -253,7 +255,7 @@ export const ko = {
     shortcutNames: {
       _execute_action: '도구 창 열기 (툴바 아이콘 누르기)',
       'capture-full': '페이지 전체 찍기',
-      'capture-area': '페이지 일부 골라 찍기',
+      'capture-area': '페이지 일부 찍기',
     } as Record<string, string>,
     shortcutChange: '단축키 바꾸기',
     shortcutDesc: '단축키는 크롬의 단축키 설정 화면에서 바꿀 수 있어요.',
