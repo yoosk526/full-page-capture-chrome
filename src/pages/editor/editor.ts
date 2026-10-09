@@ -31,6 +31,7 @@ import {
 } from '../../core/editorModel';
 import { History } from '../../core/history';
 import { constrainSquare, snapStraight } from '../../core/constrain';
+import { smoothStroke } from '../../core/smooth';
 import type { FileFormat } from '../../core/settings';
 import { resolveShortcut, type EditorAction, type ToolId } from '../../core/shortcuts';
 import { EDITOR_INITIAL_ZOOM, clampZoom, fitZoom, formatZoom, zoomIn, zoomOut } from '../../core/zoom';
@@ -70,6 +71,8 @@ let selected: string | null = null;
 /** Shift로 함께 고른 나머지 개체 (PR #1 요청) */
 const extraSel = new Set<string>();
 let zoom = EDITOR_INITIAL_ZOOM;
+/** 설정 "펜 선 부드럽게 보정" */
+let smoothStrokes = true;
 let zoomBeforeCrop = zoom;
 let cropRect: Rect | null = null;
 let objectClipboard: EditorObject[] = [];
@@ -630,6 +633,11 @@ function endDrag(): void {
       refresh();
       return;
     }
+  }
+  // 펜·형광펜 선은 손을 뗄 때 부드럽게 다듬는다 (PR #1 세 번째 요청, 설정에서 끌 수 있음)
+  if (d.kind === 'draw' && smoothStrokes && draft) {
+    const o = objectById(d.id);
+    if (o && (o.type === 'pen' || o.type === 'highlighter')) draft = updateObject(draft, o.id, { points: smoothStroke(o.points) });
   }
   if (draft) commit(draft);
 }
@@ -1193,6 +1201,7 @@ async function main(): Promise<void> {
 
   const settings = await loadSettings();
   fileFormat = settings.fileFormat;
+  smoothStrokes = settings.smoothStrokes;
   $('#save-label').textContent = fileFormat === 'pdf' ? t.result.savePdf : t.result.saveAs(FORMAT_LABEL[fileFormat]);
   $('#m-png').textContent = t.result.saveAs('PNG');
   $('#m-jpg').textContent = t.result.saveAs('JPG');

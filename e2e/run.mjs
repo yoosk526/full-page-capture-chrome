@@ -136,6 +136,30 @@ async function editorFlow(context, extId, id) {
     await ed.keyboard.press(process.platform === 'darwin' ? 'Meta+z' : 'Control+z');
   }
 
+  // 펜으로 지그재그를 그리면 손을 뗄 때 선이 부드럽게 다듬어진다 (PR #1 세 번째 요청, 설정 기본 켜짐)
+  {
+    await ed.keyboard.press('p');
+    const [zx, zy] = at(0.3, 0.45);
+    await ed.mouse.move(zx, zy);
+    await ed.mouse.down();
+    for (let k = 1; k <= 30; k++) await ed.mouse.move(zx + k * 6, zy + (k % 2 ? 8 : -8));
+    await ed.mouse.move(zx + 186, zy);
+    await ed.mouse.up();
+    await ed.waitForTimeout(1500);
+    const pts = await ed.evaluate(async (id) => {
+      const db = await new Promise((r) => { const q = indexedDB.open('hanjang-capture'); q.onsuccess = () => r(q.result); });
+      const shot = await new Promise((r) => { const q = db.transaction('shots').objectStore('shots').get(id); q.onsuccess = () => r(q.result); });
+      return shot.doc.objects.at(-1).points;
+    }, id);
+    const ys = pts.filter((_, i) => i % 2 === 1).slice(4, -4);
+    const mid = (Math.max(...ys) + Math.min(...ys)) / 2;
+    const dev = Math.max(...ys.map((y) => Math.abs(y - mid)));
+    const z = parseFloat(await ed.locator('#zoom-label').textContent()) / 100;
+    check('편집기: 펜 지그재그 → 손을 떼면 흔들림이 절반 이하로 다듬어짐', dev <= (8 / z) / 2, `흔들림 ${dev.toFixed(1)}px (원래 ${(8 / z).toFixed(1)}px)`);
+    await ed.keyboard.press('Escape');
+    await ed.keyboard.press(process.platform === 'darwin' ? 'Meta+z' : 'Control+z');
+  }
+
   // Shift로 목록에서 두 개 고르기 → 함께 지우기 → 실행 취소
   {
     const n0 = await ed.locator('#objects-list li').count();
@@ -363,6 +387,12 @@ async function optionsFlow(context, worker, extId) {
   await page.locator('#orientation button[data-value="landscape"]').click();
   await page.waitForTimeout(150);
   check('설정: A4 + 가로 방향 저장', (await stored()).pdfOrientation === 'landscape');
+  const smoothDefault = await page.locator('#smooth-strokes').isChecked();
+  await page.locator('#smooth-strokes').click();
+  await page.waitForTimeout(200);
+  check('설정: 펜 선 부드럽게 보정은 처음에 켜짐, 끄면 저장됨', smoothDefault && (await stored()).smoothStrokes === false);
+  await page.locator('#smooth-strokes').click();
+  await page.waitForTimeout(200);
   await page.screenshot({ path: join(OUT, 'options.png'), fullPage: true });
   await page.close();
   await worker.evaluate(() => chrome.storage.local.remove('settings'));

@@ -25,6 +25,8 @@ export interface Settings {
   /** 주소·날짜 도장의 마지막 선택값 (EXP-06). TODO(미확인): 다음 촬영에도 유지하는지 모름 → 유지한다 */
   stampPosition: StampPosition;
   stampDateFormat: StampDateFormat;
+  /** 펜·형광펜으로 그린 선을 부드럽게 보정 (PR #1 세 번째 요청) */
+  smoothStrokes: boolean;
 }
 
 /** TODO(미확인): 선택지 목록은 모른다. 기본값 150ms만 [확인] */
@@ -48,6 +50,7 @@ export const DEFAULT_SETTINGS: Settings = {
   pdfHeader: false,
   stampPosition: 'none',
   stampDateFormat: 'date',
+  smoothStrokes: true,
 };
 
 function oneOf<T extends string | number>(value: unknown, allowed: readonly T[], fallback: T): T {
@@ -78,5 +81,6 @@ export function normalizeSettings(raw: unknown): Settings {
     pdfHeader: bool(r.pdfHeader, d.pdfHeader),
     stampPosition: oneOf(r.stampPosition, ['none', 'top', 'bottom', 'mac', 'windows'] as const, d.stampPosition),
     stampDateFormat: oneOf(r.stampDateFormat, ['date', 'datetime', 'iso', 'none'] as const, d.stampDateFormat),
+    smoothStrokes: bool(r.smoothStrokes, d.smoothStrokes),
   };
 }

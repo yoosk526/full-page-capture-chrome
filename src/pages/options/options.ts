@@ -45,6 +45,7 @@ function render(): void {
   ($('#ask-where') as HTMLInputElement).checked = settings.askWhereToSave;
   ($('#auto-download') as HTMLInputElement).checked = settings.autoDownload;
   ($('#shrink-copy') as HTMLInputElement).checked = settings.shrinkCopy;
+  ($('#smooth-strokes') as HTMLInputElement).checked = settings.smoothStrokes;
   ($('#smart-break') as HTMLInputElement).checked = settings.pdfSmartBreak;
   ($('#pdf-links') as HTMLInputElement).checked = settings.pdfLinks;
   ($('#pdf-header') as HTMLInputElement).checked = settings.pdfHeader;
@@ -121,6 +122,7 @@ async function main(): Promise<void> {
   bindSwitch('ask-where', 'askWhereToSave');
   bindSwitch('auto-download', 'autoDownload');
   bindSwitch('shrink-copy', 'shrinkCopy');
+  bindSwitch('smooth-strokes', 'smoothStrokes');
   bindSwitch('smart-break', 'pdfSmartBreak');
   bindSwitch('pdf-links', 'pdfLinks');
   bindSwitch('pdf-header', 'pdfHeader');
