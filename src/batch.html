@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>일괄 촬영 - 한장캡처</title>
+    <link rel="stylesheet" href="./styles/base.css" />
+    <link rel="stylesheet" href="./pages/batch/batch.css" />
+  </head>
+  <body>
+    <div class="wrap">
+      <header class="head">
+        <h1><span data-icon="layers"></span><span data-i18n="batch.title"></span></h1>
+        <button class="btn" id="gallery-btn" data-icon="folder"><span data-i18n="common.gallery"></span></button>
+      </header>
+      <p class="intro" data-i18n="batch.intro"></p>
+
+      <section class="card">
+        <label class="name" for="urls" data-i18n="batch.listLabel"></label>
+        <div class="desc" id="list-desc"></div>
+        <textarea id="urls" spellcheck="false" placeholder="https://example.com&#10;https://example.com/pricing"></textarea>
+        <p class="note" data-i18n="batch.note"></p>
+        <p class="warn" id="message" hidden></p>
+        <div class="actions">
+          <button class="btn" id="add-tabs" data-icon="copy"><span data-i18n="batch.addTabs"></span></button>
+          <button class="btn" id="clear-btn"><span data-i18n="batch.clear"></span></button>
+          <span class="spacer"></span>
+          <button class="btn" id="stop-btn" hidden><span data-i18n="batch.stop"></span></button>
+          <button class="btn primary" id="start-btn"><span data-i18n="batch.start"></span></button>
+        </div>
+      </section>
+
+      <section class="card" id="progress" hidden>
+        <div class="progress-head">
+          <span class="name" id="progress-text"></span>
+          <button class="btn" id="open-gallery" hidden data-icon="folder"><span data-i18n="batch.openGallery"></span></button>
+        </div>
+        <div class="bar"><div class="bar-fill" id="bar-fill"></div></div>
+        <ol id="items"></ol>
+      </section>
+    </div>
+    <script type="module" src="./pages/batch/batch.ts"></script>
+  </body>
+</html>

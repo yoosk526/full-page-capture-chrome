@@ -21,6 +21,7 @@ export default defineConfig({
         editor: resolve(src, 'editor.html'),
         options: resolve(src, 'options.html'),
         gallery: resolve(src, 'gallery.html'),
+        batch: resolve(src, 'batch.html'),
         background: resolve(src, 'background/index.ts'),
       },
       output: {

@@ -505,6 +505,38 @@ async function popupFlow(context, worker, origin) {
   check('팝업: 영역 고르기에서 Esc → 취소(덮개 사라짐)', await page.evaluate(() => !document.getElementById('__hanjang-area')));
 }
 
+/** 일괄 촬영 (SET-32, PR #1 요청): 주소 목록을 차례로 열어 찍고 내 스크린샷에 보관 */
+async function batchFlow(context, extId, origin) {
+  const countShots = async (p) =>
+    p.evaluate(async () => {
+      const db = await new Promise((r) => {
+        const q = indexedDB.open('hanjang-capture');
+        q.onsuccess = () => r(q.result);
+      });
+      return new Promise((r) => {
+        const q = db.transaction('shots').objectStore('shots').count();
+        q.onsuccess = () => r(q.result);
+      });
+    });
+  const page = await context.newPage();
+  await page.goto(`chrome-extension://${extId}/batch.html`);
+  await page.waitForSelector('#start-btn');
+  const before = await countShots(page);
+  await page.locator('#add-tabs').click();
+  await page.waitForTimeout(300);
+  const added = await page.locator('#urls').inputValue();
+  check('일괄 촬영: "열린 탭 추가" → 열린 웹 페이지 주소가 들어감', added.includes(origin), added.split('\n')[0]);
+  await page.locator('#urls').fill([`${origin}/long.html`, `${origin}/dark.html`, 'chrome://settings', `${origin}/bodyscroll.html`].join('\n'));
+  await page.locator('#start-btn').click();
+  await page.waitForFunction(() => /끝났어요|그만뒀어요/.test(document.getElementById('progress-text')?.textContent ?? ''), null, { timeout: 120000 });
+  const text = await page.locator('#progress-text').textContent();
+  const note = await page.locator('#message').textContent();
+  const after = await countShots(page);
+  check('일괄 촬영: 주소 3개 성공, 찍을 수 없는 줄 1개는 건너뜀', text === '끝났어요. 성공 3개' && after - before === 3 && note.includes('1개'), `${text} / ${note} / +${after - before}`);
+  await page.screenshot({ path: join(OUT, 'batch.png'), fullPage: true });
+  await page.close();
+}
+
 async function main() {
   rmSync(OUT, { recursive: true, force: true });
   mkdirSync(OUT, { recursive: true });
@@ -637,6 +669,7 @@ async function main() {
 
     // 실제 툴바 팝업 (CAP-01, PR #1): 고르는 창 → 페이지 전체 / 페이지 일부
     await popupFlow(context, worker, origin);
+    await batchFlow(context, extId, origin);
 
     // 보호 페이지 안내 (CAP-11): 확장 페이지 자신은 찍을 수 없는 주소이므로 안내가 나와야 한다
     const pop = await context.newPage();

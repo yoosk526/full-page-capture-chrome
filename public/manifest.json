@@ -52,5 +52,8 @@
   },
   "content_security_policy": {
     "extension_pages": "script-src 'self'; object-src 'self'; connect-src 'self' data: blob:"
-  }
+  },
+  "optional_host_permissions": [
+    "<all_urls>"
+  ]
 }

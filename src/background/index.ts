@@ -1,7 +1,8 @@
 // 서비스 워커: 툴바 팝업과 연결해 촬영을 진행한다.
 // 팝업이 열리면 촬영 시작(또는 이어서), 팝업이 닫히면(연결이 끊기면) 잠시 멈춤 (CAP-03, CAP-04)
-import { POPUP_PORT, type AreaSelected, type PopupToWorker, type WorkerToPopup } from '../shared/messages';
+import { BATCH_PORT, POPUP_PORT, type AreaSelected, type BatchToWorker, type PopupToWorker, type WorkerToBatch, type WorkerToPopup } from '../shared/messages';
 import { captureArea, startAreaSelect } from './area';
+import { BatchRun } from './batch';
 import { loadSettings } from '../shared/settingsStore';
 import { CancelledError, CaptureSession } from './capture';
 import { autoDownloadShots } from './autoDownload';
@@ -120,4 +121,26 @@ chrome.runtime.onMessage.addListener((msg: AreaSelected, sender, sendResponse) =
     },
   );
   return true;
+});
+
+// 일괄 촬영 (SET-32, PR #1 요청). 화면을 닫아도 진행은 계속한다
+let batch: BatchRun | null = null;
+chrome.runtime.onConnect.addListener((port) => {
+  if (port.name !== BATCH_PORT) return;
+  let connected = true;
+  port.onDisconnect.addListener(() => (connected = false));
+  const report = (msg: WorkerToBatch) => {
+    if (connected) port.postMessage(msg);
+  };
+  port.onMessage.addListener((msg: BatchToWorker) => {
+    if (msg.kind === 'start' && !batch) {
+      const run = new BatchRun(report);
+      batch = run;
+      void run.run(msg.urls).finally(() => {
+        if (batch === run) batch = null;
+      });
+    } else if (msg.kind === 'stop') {
+      batch?.stop();
+    }
+  });
 });

@@ -60,3 +60,13 @@ export interface AreaSelected {
   title: string;
   url: string;
 }
+
+export const BATCH_PORT = 'batch';
+
+/** 일괄 촬영 화면 → 서비스 워커 */
+export type BatchToWorker = { kind: 'start'; urls: string[] } | { kind: 'stop' };
+
+/** 서비스 워커 → 일괄 촬영 화면 */
+export type WorkerToBatch =
+  | { kind: 'item'; index: number; total: number; url: string; status: 'running' | 'ok' | 'failed'; error?: string }
+  | { kind: 'finished'; ok: number; failed: number; stopped: boolean };
