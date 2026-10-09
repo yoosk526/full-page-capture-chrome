@@ -270,8 +270,15 @@ async function optionsFlow(context, worker, extId) {
   await page.locator('#scroll-delay').selectOption('300');
   await page.waitForTimeout(200);
   check('설정: 스크롤 사이 기다리기 300ms 저장', (await stored()).scrollDelayMs === 300);
-  const sc = await page.locator('#shortcut-current').textContent();
-  check('설정: 크롬 단축키 표시', /Alt\+Shift\+K|⌥⇧K/.test(sc), sc);
+  const sc = (await page.locator('#shortcut-list').innerText()).replace(/\s+/g, ' ');
+  check('설정: 단축키 3가지 표시(전체 Ctrl+Shift+K, 일부 Ctrl+Shift+E)', /페이지 전체 찍기 Ctrl\+Shift\+K/.test(sc) && /페이지 일부 골라 찍기 Ctrl\+Shift\+E/.test(sc) && /도구 창 열기/.test(sc), sc);
+  await page.locator('#papers .paper').nth(0).click();
+  await page.waitForTimeout(150);
+  check('설정: 전체 이미지 용지에서는 방향 선택이 꺼짐', await page.locator('#orientation button').first().isDisabled());
+  await page.locator('#papers .paper').nth(3).click();
+  await page.locator('#orientation button[data-value="landscape"]').click();
+  await page.waitForTimeout(150);
+  check('설정: A4 + 가로 방향 저장', (await stored()).pdfOrientation === 'landscape');
   await page.screenshot({ path: join(OUT, 'options.png'), fullPage: true });
   await page.close();
   await worker.evaluate(() => chrome.storage.local.remove('settings'));

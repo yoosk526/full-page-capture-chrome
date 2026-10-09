@@ -89,7 +89,7 @@ function render(): void {
   const list = visible();
   $('#count').textContent = G.count(shots.length);
   const allSelected = selecting && list.length > 0 && list.every((s) => selected.has(s.id));
-  $('#select-all').textContent = allSelected ? G.deselectAll : G.selectAll;
+  $('#select-all-label').textContent = allSelected ? G.deselectAll : G.selectAll;
   ($('#select-all') as HTMLButtonElement).disabled = list.length === 0;
   const empty = $('#empty');
   empty.hidden = list.length > 0;
@@ -168,6 +168,7 @@ $('#save-selected').addEventListener('click', () => void saveSelected());
 $('#delete-selected').addEventListener('click', () => void deleteSelected());
 $('#search').addEventListener('input', render);
 $('#settings-btn').addEventListener('click', () => chrome.runtime.openOptionsPage());
+$('#batch-btn').addEventListener('click', () => openPage('batch.html'));
 document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape' && selecting) exitSelecting();
 });

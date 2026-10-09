@@ -40,7 +40,7 @@ export async function renderPdf(rendered: OffscreenCanvas, shot: ShotRecord, set
   const L = outputLayout(shot.doc, shot.width, shot.height);
   const links = settings.pdfLinks ? mapLinks(shot.links, L.crop, L.imageY + headerH) : [];
   const paper = settings.pdfPaper;
-  const g = pageGeometry(paper, canvas.width, canvas.height);
+  const g = pageGeometry(paper, canvas.width, canvas.height, settings.pdfOrientation);
   const ctx = canvas.getContext('2d') as Canvas2D;
 
   // 똑똑한 페이지 나누기: 페이지 끝 근처의 픽셀만 읽어 한 가지 색인 가로줄을 찾는다 (SET-21)

@@ -20,11 +20,14 @@
 
 .title h1 {
   margin: 0;
-  font-size: 22px;
+  font-size: 24px;
+  font-weight: 700;
 }
 
+/* "이 기기에 보관됨" 은 제목보다 작고 본문보다 크게 (PR #1 요청) */
 .count {
   color: var(--muted);
+  font-size: 16px;
 }
 
 .tools {
@@ -36,13 +39,18 @@
 .search {
   display: flex;
   align-items: center;
-  gap: 6px;
-  height: 36px;
-  padding: 0 10px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  background: var(--surface);
+  gap: 8px;
+  height: 40px;
+  padding: 0 16px;
+  border: 1px solid transparent;
+  border-radius: var(--pill);
+  background: #eef0f3;
   color: var(--muted);
+}
+
+.search:focus-within {
+  border-color: var(--border);
+  background: var(--surface);
 }
 
 .search input {
@@ -51,6 +59,7 @@
   outline: none;
   background: transparent;
   font: inherit;
+  font-size: 15px;
   color: var(--text);
 }
 
@@ -164,6 +173,7 @@
 }
 
 .card .name {
+  font-size: 16px;
   font-weight: 600;
   white-space: nowrap;
   overflow: hidden;
@@ -173,7 +183,7 @@
 .card .meta {
   margin-top: 4px;
   color: var(--muted);
-  font-size: 12px;
+  font-size: 14px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;

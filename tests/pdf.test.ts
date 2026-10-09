@@ -97,6 +97,20 @@ describe('pageGeometry: 용지 4가지 (SET-20)', () => {
     expect([g.pageW, g.pageH]).toEqual([595.28, 841.89]);
     expect(1000 * g.scale + g.originX * 2).toBeCloseTo(595.28);
   });
+
+  // 목적: 가로 방향을 골랐는데 세로 용지로 저장되는 결함을 막는다 (PR #1 요청)
+  it('[EP] TC-PAPER-03 A4 + 가로 → 841.89x595.28pt, 한 쪽에 들어가는 높이가 세로보다 작음', () => {
+    const portrait = pageGeometry('a4', 1000, 5000, 'portrait');
+    const landscape = pageGeometry('a4', 1000, 5000, 'landscape');
+    expect([landscape.pageW, landscape.pageH]).toEqual([841.89, 595.28]);
+    expect(landscape.sliceH).toBeLessThan(portrait.sliceH);
+  });
+
+  // 목적: "전체 이미지"에 가로 방향을 적용해 이미지가 눕혀지는 결함을 막는다
+  it('[EP] TC-PAPER-04 전체 이미지 + 가로 → 방향 무시, 이미지 크기 그대로', () => {
+    const g = pageGeometry('full', 2560, 4318, 'landscape');
+    expect([g.pageW, g.pageH]).toEqual([1920, 3238.5]);
+  });
 });
 
 describe('mapLinks / linksForSlice: 누를 수 있는 링크 (SET-22)', () => {

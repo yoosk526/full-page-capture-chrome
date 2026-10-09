@@ -13,13 +13,15 @@
         <div class="title">
           <h1 data-i18n="gallery.title"></h1>
           <span class="count" id="count"></span>
-          <button class="btn" id="select-all"></button>
+          <button class="btn" id="select-all" data-icon="check"><span id="select-all-label"></span></button>
         </div>
         <div class="tools">
           <label class="search">
             <span data-icon="search"></span>
             <input id="search" type="search" data-i18n-placeholder="gallery.search" />
           </label>
+          <!-- 일괄 촬영 (PR #1 요청: 검색창과 설정 사이) -->
+          <button class="icon-btn" id="batch-btn" data-icon="layers" data-i18n-title="batch.title"></button>
           <button class="icon-btn" id="settings-btn" data-icon="gear" data-i18n-title="common.settings"></button>
         </div>
       </header>

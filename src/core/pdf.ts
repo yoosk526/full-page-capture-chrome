@@ -1,5 +1,5 @@
 // PDF 만들기 (EXP-02, EXP-03, SET-20 ~ SET-23). 외부 라이브러리 없이 JPEG 그림을 페이지에 붙인다.
-import type { PdfPaper } from './settings';
+import type { PdfOrientation, PdfPaper } from './settings';
 
 /** 용지 크기(pt, 1pt = 1/72인치) */
 export const PAPER_SIZE_PT: Record<Exclude<PdfPaper, 'full'>, [number, number]> = {
@@ -87,11 +87,16 @@ export interface PageGeometry {
   sliceH: number;
 }
 
-export function pageGeometry(paper: PdfPaper, imageW: number, imageH: number): PageGeometry {
+/**
+ * 용지와 방향(PR #1 요청)에 따른 페이지 배치. "전체 이미지"는 방향과 관계없이 이미지 크기 그대로다.
+ * 가로 방향은 용지의 가로·세로를 바꾼다.
+ */
+export function pageGeometry(paper: PdfPaper, imageW: number, imageH: number, orientation: PdfOrientation = 'portrait'): PageGeometry {
   if (paper === 'full') {
     return { pageW: imageW * PX_TO_PT, pageH: imageH * PX_TO_PT, originX: 0, originY: 0, scale: PX_TO_PT, sliceH: imageH };
   }
-  const [pageW, pageH] = PAPER_SIZE_PT[paper];
+  const [shortSide, longSide] = PAPER_SIZE_PT[paper];
+  const [pageW, pageH] = orientation === 'landscape' ? [longSide, shortSide] : [shortSide, longSide];
   const scale = (pageW - PAGE_MARGIN_PT * 2) / imageW;
   const sliceH = Math.max(1, Math.floor((pageH - PAGE_MARGIN_PT * 2) / scale));
   return { pageW, pageH, originX: PAGE_MARGIN_PT, originY: PAGE_MARGIN_PT, scale, sliceH };

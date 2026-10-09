@@ -23,13 +23,31 @@
     "type": "module"
   },
   "options_page": "options.html",
-  "permissions": ["activeTab", "scripting", "downloads", "storage", "unlimitedStorage", "clipboardWrite"],
+  "permissions": [
+    "activeTab",
+    "scripting",
+    "downloads",
+    "storage",
+    "unlimitedStorage",
+    "clipboardWrite"
+  ],
   "commands": {
     "_execute_action": {
+      "description": "도구 창 열기"
+    },
+    "capture-full": {
       "suggested_key": {
-        "default": "Alt+Shift+K",
-        "mac": "Alt+Shift+K"
-      }
+        "default": "Ctrl+Shift+K",
+        "mac": "Command+Shift+K"
+      },
+      "description": "페이지 전체 찍기"
+    },
+    "capture-area": {
+      "suggested_key": {
+        "default": "Ctrl+Shift+E",
+        "mac": "Command+Shift+E"
+      },
+      "description": "페이지 일부 골라 찍기"
     }
   },
   "content_security_policy": {

@@ -3,6 +3,7 @@ import { FOLDER_NAME_MAX, checkFolderName } from '../../core/fileName';
 import { DEFAULT_SETTINGS, SCROLL_DELAY_OPTIONS, WAIT_IMAGES_OPTIONS, type PdfPaper, type Settings } from '../../core/settings';
 import { applyI18n, t } from '../../shared/i18n';
 import { loadSettings, saveSettings } from '../../shared/settingsStore';
+import { icons } from '../../shared/icons';
 import { $, applyIcons, openPage, openReport, toast } from '../../shared/ui';
 
 applyI18n();
@@ -54,11 +55,19 @@ function render(): void {
     const b = document.createElement('button');
     b.className = 'paper' + (p === settings.pdfPaper ? ' on' : '');
     b.setAttribute('aria-pressed', String(p === settings.pdfPaper));
-    b.innerHTML = '<div class="t"></div><div class="d"></div>';
+    b.innerHTML = `<span class="paper-icon">${p === 'full' ? icons.pageSingle : icons.pageMulti}</span><span class="paper-text"><span class="t"></span><span class="d"></span></span><span class="paper-check">${icons.check}</span>`;
     b.querySelector('.t')!.textContent = O.papers[p].title;
     b.querySelector('.d')!.textContent = O.papers[p].desc;
     b.addEventListener('click', () => void save({ pdfPaper: p }));
     papers.appendChild(b);
+  });
+  // 방향은 고정 크기 용지에만 쓴다 (전체 이미지는 이미지 크기 그대로)
+  const isFull = settings.pdfPaper === 'full';
+  $('#orientation-row').classList.toggle('disabled', isFull);
+  document.querySelectorAll<HTMLButtonElement>('#orientation button').forEach((b) => {
+    b.disabled = isFull;
+    b.classList.toggle('on', b.dataset.value === settings.pdfOrientation);
+    b.setAttribute('aria-pressed', String(b.dataset.value === settings.pdfOrientation));
   });
 }
 
@@ -77,11 +86,24 @@ function saveFolder(): void {
   void save({ saveFolder: r.value }).then(() => toast(O.saveFolderSaved));
 }
 
+/** 크롬에 등록된 단축키 3가지를 보여 준다 (CAP-01, PR #1 요청). 키는 크롬의 단축키 화면에서 바꾼다 */
 async function renderShortcut(): Promise<void> {
-  // "확장 프로그램 활성화" = 툴바 아이콘 누르기 (CAP-01). 키는 크롬 단축키 화면에서 바꾼다
   const commands = await chrome.commands.getAll();
-  const action = commands.find((c) => c.name === '_execute_action');
-  $('#shortcut-current').textContent = action?.shortcut ? O.shortcutCurrent(action.shortcut) : O.shortcutNone;
+  const order = ['_execute_action', 'capture-full', 'capture-area'];
+  const list = $('#shortcut-list');
+  list.textContent = '';
+  for (const name of order) {
+    const c = commands.find((x) => x.name === name);
+    if (!c) continue;
+    const row = document.createElement('div');
+    row.className = 'row shortcut-row';
+    row.innerHTML = '<div class="text"><div class="name"></div></div><kbd class="key"></kbd>';
+    row.querySelector('.name')!.textContent = O.shortcutNames[name] ?? c.description ?? name;
+    const key = row.querySelector('.key')!;
+    key.textContent = c.shortcut || O.shortcutNotSet;
+    key.classList.toggle('unset', !c.shortcut);
+    list.appendChild(row);
+  }
 }
 
 async function main(): Promise<void> {
@@ -102,6 +124,9 @@ async function main(): Promise<void> {
   bindSwitch('smart-break', 'pdfSmartBreak');
   bindSwitch('pdf-links', 'pdfLinks');
   bindSwitch('pdf-header', 'pdfHeader');
+  document.querySelectorAll<HTMLButtonElement>('#orientation button').forEach((b) =>
+    b.addEventListener('click', () => void save({ pdfOrientation: b.dataset.value as Settings['pdfOrientation'] })),
+  );
   $('#report-btn').addEventListener('click', openReport);
   $('#gallery-btn').addEventListener('click', () => openPage('gallery.html'));
   $('#shortcut-btn').addEventListener('click', () => void chrome.tabs.create({ url: 'chrome://extensions/shortcuts' }));

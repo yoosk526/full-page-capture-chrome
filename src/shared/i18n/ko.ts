@@ -228,6 +228,10 @@ export const ko = {
       legal: { title: 'US Legal', desc: '8.5 x 14인치' },
       a4: { title: 'A4', desc: '210 x 297mm' },
     },
+    orientation: '방향',
+    orientationDesc: '위에서 고른 용지에 적용할 방향이에요. 전체 이미지에는 쓰지 않아요.',
+    portrait: '세로',
+    landscape: '가로',
     smartBreak: '보기좋게 페이지 나누기',
     smartBreakDesc: '페이지가 나뉘는 곳을 줄과 줄 사이로 옮겨 글자가 잘리지 않게 해요.',
     pdfLinks: '누를 수 있는 링크',
@@ -236,8 +240,14 @@ export const ko = {
     pdfHeaderDesc: 'PDF 첫 페이지 맨 위에 페이지 주소와 촬영 시각을 넣어요.',
     shortcutCurrent: (key: string) => `지금 단축키: ${key}`,
     shortcutNone: '지금 정해진 단축키가 없어요.',
+    shortcutNotSet: '설정 안 됨',
+    shortcutNames: {
+      _execute_action: '도구 창 열기 (툴바 아이콘 누르기)',
+      'capture-full': '페이지 전체 찍기',
+      'capture-area': '페이지 일부 골라 찍기',
+    } as Record<string, string>,
     shortcutChange: '단축키 바꾸기',
-    shortcutDesc: '툴바 아이콘을 누르는 것과 같아요. 크롬의 단축키 설정 화면에서 바꿀 수 있어요.',
+    shortcutDesc: '단축키는 크롬의 단축키 설정 화면에서 바꿀 수 있어요.',
     privacyTitle: '개인정보',
     privacyBody:
       '계정이 필요 없고, 사용 기록을 모으지 않으며, 인터넷으로 아무것도 보내지 않아요. 찍은 이미지는 이 기기에만 보관돼요. 워터마크도 넣지 않아요.',
@@ -258,6 +268,9 @@ export const ko = {
     deleteOne: '지우기',
     deleteManyConfirm: (n: number) => `선택한 스크린샷 ${n}개를 지울까요? 지운 뒤에는 되돌릴 수 없어요.`,
     month: (m: number, d: number) => `${m}월 ${d}일`,
+  },
+  batch: {
+    title: '일괄 촬영',
   },
   stamp: {
     am: '오전',
