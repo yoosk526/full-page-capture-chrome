@@ -1,12 +1,12 @@
 # CLAUDE.md
 
 이 저장소는 크롬 확장 프로그램 "한장캡처"(전체 페이지 스크롤 캡처 + 편집기)다.
-기능의 기준은 `docs/FEATURES.md`뿐이다. 기존 상용 확장 프로그램의 소스 코드는 열람·복제·디컴파일하지 않고, 그 이름·로고·아이콘·화면 문구도 쓰지 않는다. 화면 문구는 한국어로 새로 쓰고 `src/shared/i18n/ko.ts` 한 파일에 모은다.
+기능의 기준은 `docs/FEATURES.md`와, 그 뒤 사용자가 요청한 변경을 적은 `docs/CHANGE_REQUESTS.md`다(둘이 다르면 CHANGE_REQUESTS.md가 우선). 기존 상용 확장 프로그램의 소스 코드는 열람·복제·디컴파일하지 않고, 그 이름·로고·아이콘은 쓰지 않는다(아이콘은 직접 그린다). 화면 문구는 한국어로 쓰고 `src/shared/i18n/ko.ts` 한 파일에 모은다. 사용자가 PR #1에서 요청한 범위의 문구는 기존 프로그램과 같게 써도 된다(CHANGE_REQUESTS.md 답변 A ①).
 
 - 근거 표기: [확인]/[공식]/[제안]은 구현 대상, [추정]은 가장 단순하게 구현하고 `TODO(추정)`, [미확인]은 `docs/OPEN_QUESTIONS.md`에 질문으로 적고 막히면 가장 단순한 기본 동작 + `TODO(미확인)`.
-- 만들지 않는 것: Google Drive 저장(EXP-07, SET-33), 계정 로그인과 Pro 안내(SET-05, RES-07), 일괄 촬영 진입 아이콘. 2단계(SET-30, SET-31, SET-32)는 사용자가 요청할 때만.
+- 만들지 않는 것: Google Drive 저장(EXP-07, SET-33), 계정 로그인과 Pro 안내(SET-05, RES-07). 2단계 중 증거 모드(SET-30)와 검색 가능한 PDF(SET-31)는 사용자가 요청할 때만. 일괄 촬영(SET-32)은 PR #1 요청으로 만들었다.
 - 계정 없음, 분석 도구 없음, 네트워크 요청 없음, 파일은 기기에만 저장(SET-02).
-- 명령: `npm run build`(타입 검사 + 빌드, 결과는 `dist/`), `npm test`, `npm run coverage`, `npm run package`(설치용 압축 파일을 `release/`에 만든다. 최종 PR 직전에만 실행).
+- 명령: `npm run build`(타입 검사 + 빌드, 결과는 `dist/`), `npm test`, `npm run coverage`, `npm run test:doc`(테스트 실행 + `docs/TEST_CASES.md` 다시 만들기), `npm run e2e`(빌드 후 headless Chromium 시험), `npm run package`(설치용 압축 파일을 `release/`에 만든다. 최종 PR 직전에만 실행).
 - 순수 로직은 `src/core/`에 두고 Chrome API를 쓰지 않는다. 테스트는 `tests/`에 있다.
 
 # 읽는 사람
