@@ -744,6 +744,23 @@ async function popupFlow(context, worker, origin) {
   }
   await page.goto(origin + '/long.html');
 
+  // 찍지 못하면 원인도 함께 보인다 (Issue #3: 사용자 컴퓨터에서만 실패해 원인을 알아야 함). 2px만 끌어 일부러 실패시킨다
+  {
+    await page.bringToFront();
+    await worker.evaluate(() => chrome.action.openPopup());
+    pop = await attachPopup(context, page);
+    await new Promise((r) => setTimeout(r, 300));
+    await pop.eval(`document.getElementById('choose-area').click()`);
+    await page.waitForFunction(() => !!document.getElementById('__hanjang-area'), null, { timeout: 5000 });
+    await page.mouse.move(200, 200);
+    await page.mouse.down();
+    await page.mouse.move(202, 202);
+    await page.mouse.up();
+    const shown = await page.waitForFunction(() => document.getElementById('__hanjang-area-failed')?.innerText ?? '', null, { timeout: 10000 }).then((h) => h.jsonValue(), () => '');
+    check('영역 고르기: 찍지 못하면 원인이 함께 보임', /찍지 못했어요/.test(shown) && /원인: .+/.test(shown), shown.replace(/\n/g, ' / '));
+    await page.evaluate(() => document.getElementById('__hanjang-area-failed')?.remove());
+  }
+
   // Esc로 영역 고르기 취소
   await page.bringToFront();
   await worker.evaluate(() => chrome.action.openPopup());

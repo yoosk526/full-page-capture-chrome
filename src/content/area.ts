@@ -136,8 +136,13 @@ function start(): void {
     document.querySelectorAll(`[${SCROLLER_ATTR}]`).forEach((el) => el.removeAttribute(SCROLLER_ATTR));
     scrollBox?.setAttribute(SCROLLER_ATTR, '');
     const msg: AreaSelected = { kind: 'areaSelected', rect, title: document.title, url: location.href };
-    const res = (await chrome.runtime.sendMessage(msg)) as { ok: boolean } | undefined;
-    if (res && !res.ok) showFailed();
+    try {
+      const res = (await chrome.runtime.sendMessage(msg)) as { ok: boolean; error?: string } | undefined;
+      if (!res) showFailed('no response');
+      else if (!res.ok) showFailed(res.error ?? 'unknown');
+    } catch (e) {
+      showFailed(String(e instanceof Error ? e.message : e));
+    }
   });
 }
 
@@ -176,13 +181,23 @@ function frameDocument(f: HTMLIFrameElement): Document | null {
   }
 }
 
-function showFailed(): void {
+/** 실패 안내. 원인을 알 수 있게 오류 내용도 함께 보여 준다 (Issue #3: 사용자 화면에서만 실패해 원인을 알아야 함) */
+function showFailed(reason: string): void {
   const el = document.createElement('div');
-  el.textContent = t.area.failed;
+  el.id = '__hanjang-area-failed';
   el.style.cssText =
-    'position:fixed;left:50%;top:16px;transform:translateX(-50%);z-index:2147483647;padding:9px 16px;border-radius:999px;background:#d33a2c;color:#fff;font:500 14px system-ui,sans-serif';
+    'position:fixed;left:50%;top:16px;transform:translateX(-50%);z-index:2147483647;max-width:min(640px,90vw);padding:10px 16px;border-radius:14px;background:#d33a2c;color:#fff;font:500 14px/1.5 system-ui,sans-serif;user-select:text;cursor:text';
+  const title = document.createElement('div');
+  title.textContent = t.area.failed;
+  const detail = document.createElement('div');
+  detail.textContent = t.area.failedReason(reason);
+  detail.style.cssText = 'margin-top:4px;font-size:12px;opacity:.9;word-break:break-all';
+  el.append(title, detail);
   document.documentElement.appendChild(el);
-  setTimeout(() => el.remove(), 3000);
+  // 원인을 읽고 옮겨 적을 수 있게 오래 보여 주고, 누르면 닫힌다
+  const close = () => el.remove();
+  setTimeout(close, 15000);
+  el.addEventListener('dblclick', close);
 }
 
 start();
