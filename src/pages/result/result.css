@@ -1,0 +1,179 @@
+body {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  overflow: hidden;
+  background: var(--surface);
+}
+
+/* 머리글 한 줄: 제목·파일 이름 / 주요 버튼 / 아이콘 버튼 (PR #1 요청: 기존 배치와 같게) */
+.top {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  padding: 12px 20px;
+  background: var(--surface);
+}
+
+.title-block {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+}
+
+.title-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  color: var(--muted);
+}
+
+.title-icon svg {
+  width: 22px;
+  height: 22px;
+}
+
+h1 {
+  flex: none;
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+}
+
+/* 파일 이름은 뒤를 말줄임표로 줄인다 (PR #1 답변 D ②) */
+.file-name {
+  min-width: 60px;
+  max-width: 260px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.image-size {
+  flex: 0 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--muted);
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: none;
+}
+
+.split {
+  display: inline-flex;
+}
+
+.split #save-btn {
+  border-top-right-radius: 0;
+  border-bottom-right-radius: 0;
+  padding-right: 14px;
+}
+
+.split-arrow {
+  padding: 0 10px 0 8px;
+  border-left: 1px solid rgba(255, 255, 255, 0.28) !important;
+  border-top-left-radius: 0;
+  border-bottom-left-radius: 0;
+}
+
+.side-icons {
+  display: flex;
+  gap: 2px;
+  flex: none;
+}
+
+.parts {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  padding: 0 20px 10px;
+}
+
+.parts .btn {
+  height: 32px;
+  font-size: 14px;
+}
+
+.parts button.current {
+  background: var(--accent-soft);
+  border-color: var(--accent-soft);
+  color: var(--accent);
+}
+
+main {
+  flex: 1;
+  overflow: auto;
+  padding: 24px;
+  background: var(--bg);
+}
+
+#preview {
+  display: block;
+  margin: 0 auto;
+  max-width: none;
+  background: #fff;
+  box-shadow: var(--shadow);
+  border-radius: 6px;
+}
+
+.notice {
+  padding: 40px;
+  color: var(--muted);
+  text-align: center;
+}
+
+/* 오른쪽 아래 확대/축소 상자 */
+.zoom-box {
+  position: fixed;
+  right: 20px;
+  bottom: 20px;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 3px 6px;
+  border: 1px solid var(--border);
+  border-radius: var(--pill);
+  background: var(--surface);
+  box-shadow: var(--shadow);
+}
+
+.zoom-box .icon-btn {
+  width: 34px;
+  height: 34px;
+}
+
+#zoom-label {
+  min-width: 52px;
+  text-align: center;
+  font-size: 15px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.zoom-sep {
+  width: 1px;
+  height: 18px;
+  margin: 0 4px;
+  background: var(--border);
+}
+
+@media (max-width: 1100px) {
+  .top {
+    flex-wrap: wrap;
+  }
+}

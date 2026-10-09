@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>내 스크린샷 - 한장캡처</title>
+    <link rel="stylesheet" href="./styles/base.css" />
+    <link rel="stylesheet" href="./pages/gallery/gallery.css" />
+  </head>
+  <body>
+    <div class="wrap">
+      <header class="head">
+        <div class="title">
+          <h1 data-i18n="gallery.title"></h1>
+          <span class="count" id="count"></span>
+          <button class="btn" id="select-all" data-icon="check"><span id="select-all-label"></span></button>
+        </div>
+        <div class="tools">
+          <label class="search">
+            <span data-icon="search"></span>
+            <input id="search" type="search" data-i18n-placeholder="gallery.search" />
+          </label>
+          <!-- 일괄 촬영 (PR #1 요청: 검색창과 설정 사이) -->
+          <button class="icon-btn" id="batch-btn" data-icon="layers" data-i18n-title="batch.title"></button>
+          <button class="icon-btn" id="settings-btn" data-icon="gear" data-i18n-title="common.settings"></button>
+        </div>
+      </header>
+      <p class="empty" id="empty" hidden></p>
+      <div class="grid" id="grid"></div>
+    </div>
+
+    <!-- 선택 모드 막대 (GAL-05) -->
+    <div class="select-bar" id="select-bar" hidden>
+      <span id="selected-count"></span>
+      <div class="bar-actions">
+        <button class="btn danger" id="delete-selected" data-icon="trash"><span data-i18n="gallery.delete"></span></button>
+        <button class="btn primary" id="save-selected" data-icon="download"><span id="save-selected-label"></span></button>
+        <button class="icon-btn" id="close-select" data-icon="close" data-i18n-title="common.close"></button>
+      </div>
+    </div>
+    <script type="module" src="./pages/gallery/gallery.ts"></script>
+  </body>
+</html>

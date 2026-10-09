@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>편집 - 한장캡처</title>
+    <link rel="stylesheet" href="./styles/base.css" />
+    <link rel="stylesheet" href="./pages/editor/editor.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="group">
+        <button class="icon-btn" id="back-btn" data-icon="back" data-i18n-title="editor.back"></button>
+        <h1 data-i18n="editor.title"></h1>
+        <button class="icon-btn" id="undo-btn" data-icon="undo" disabled></button>
+        <button class="icon-btn" id="redo-btn" data-icon="redo" disabled></button>
+      </div>
+      <div class="group">
+        <button class="icon-btn" id="zoom-out" data-icon="minus"></button>
+        <span id="zoom-label">75%</span>
+        <button class="icon-btn" id="zoom-in" data-icon="plus"></button>
+        <button class="icon-btn" id="zoom-fit" data-icon="fit" data-i18n-title="common.zoomFit"></button>
+      </div>
+      <div class="group">
+        <button class="btn" id="copy-btn" data-icon="copy"><span data-i18n="result.copy"></span></button>
+        <button class="btn" id="print-btn" data-icon="print"><span data-i18n="result.print"></span></button>
+        <div class="split">
+          <button class="btn primary" id="save-btn" data-icon="download"><span id="save-label"></span></button>
+          <button class="btn primary split-arrow" id="save-more" data-icon="chevronDown" data-i18n-title="result.moreFormats"></button>
+        </div>
+        <button class="icon-btn" id="more-btn" data-icon="more" data-i18n-title="editor.more"></button>
+      </div>
+    </header>
+
+    <div class="menu" id="save-menu" hidden>
+      <button data-format="png"><span id="m-png"></span></button>
+      <button data-format="jpg"><span id="m-jpg"></span></button>
+      <button data-format="pdf"><span data-i18n="result.savePdf"></span></button>
+    </div>
+
+    <!-- 더보기(…) 메뉴 (EDT-14) -->
+    <div class="menu" id="more-menu" hidden>
+      <div class="menu-heading" data-i18n="editor.stampHeading"></div>
+      <div id="stamp-positions"></div>
+      <div class="menu-heading" data-i18n="editor.dateHeading"></div>
+      <div id="date-formats"></div>
+      <hr />
+      <button id="shortcuts-item" data-icon="keyboard"><span data-i18n="editor.shortcutsMenu"></span></button>
+      <button id="report-item" data-icon="flag"><span data-i18n="common.report"></span></button>
+      <button id="delete-item" class="danger-item" data-icon="trash"><span data-i18n="editor.deleteShot"></span></button>
+    </div>
+
+    <div class="body">
+      <nav class="toolbar" id="toolbar"></nav>
+      <div class="stage-col">
+        <div class="stage-wrap">
+          <div class="stage" id="stage"><div class="sizer" id="sizer"></div></div>
+          <canvas id="view"></canvas>
+          <textarea id="text-input" spellcheck="false" hidden></textarea>
+        </div>
+        <!-- 그림 아래 줄: 자르기 버튼이 그림을 가리지 않도록 따로 둔다 (PR #1 두 번째 요청) -->
+        <div class="stage-foot">
+          <div class="crop-bar" id="crop-bar" hidden>
+            <button class="btn" id="crop-cancel"><span data-i18n="editor.cropCancel"></span></button>
+            <button class="btn primary" id="crop-apply"><span data-i18n="editor.cropApply"></span></button>
+          </div>
+          <button class="btn" id="reset-btn" data-icon="reset"><span data-i18n="editor.resetAll"></span></button>
+        </div>
+      </div>
+      <aside class="panel">
+        <section class="style-panel" id="style-panel"></section>
+        <section class="objects">
+          <h2 class="objects-title"><span id="objects-label"></span><span class="objects-count" id="objects-count"></span></h2>
+          <ul id="objects-list"></ul>
+          <p class="empty" id="objects-empty" data-i18n="editor.objectsEmpty"></p>
+        </section>
+      </aside>
+    </div>
+
+    <footer class="statusbar">
+      <span id="status"></span>
+      <span id="page-url"></span>
+    </footer>
+
+    <!-- 단축키 창 (EDT-15) -->
+    <div class="dialog-backdrop" id="shortcuts-dialog" hidden>
+      <div class="dialog" role="dialog" aria-modal="true" aria-labelledby="shortcuts-title">
+        <div class="dialog-head">
+          <h2 id="shortcuts-title" data-i18n="shortcuts.title"></h2>
+          <button class="icon-btn" id="shortcuts-close" data-icon="close" data-i18n-title="common.close"></button>
+        </div>
+        <div class="shortcut-grid" id="shortcut-grid"></div>
+      </div>
+    </div>
+
+    <div id="print-area"><img id="print-img" alt="" /></div>
+    <script type="module" src="./pages/editor/editor.ts"></script>
+  </body>
+</html>

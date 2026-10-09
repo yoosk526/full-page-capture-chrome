@@ -1,0 +1,164 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>설정 - 한장캡처</title>
+    <link rel="stylesheet" href="./styles/base.css" />
+    <link rel="stylesheet" href="./pages/options/options.css" />
+  </head>
+  <body>
+    <div class="wrap">
+      <header class="head">
+        <h1 data-i18n="options.title"></h1>
+        <div class="head-actions">
+          <button class="btn" id="report-btn" data-icon="flag"><span data-i18n="common.report"></span></button>
+          <button class="btn" id="gallery-btn" data-icon="folder"><span data-i18n="common.gallery"></span></button>
+        </div>
+      </header>
+
+      <section class="card">
+        <h2 data-i18n="options.captureSection"></h2>
+
+        <div class="row">
+          <div class="text">
+            <div class="name" data-i18n="options.fileFormat"></div>
+            <div class="desc" data-i18n="options.fileFormatDesc"></div>
+          </div>
+          <div class="seg" id="file-format">
+            <button data-value="png">PNG</button>
+            <button data-value="jpg">JPEG</button>
+            <button data-value="pdf">PDF</button>
+          </div>
+        </div>
+
+        <div class="row">
+          <div class="text">
+            <label class="name" for="scroll-delay" data-i18n="options.scrollDelay"></label>
+            <div class="desc" data-i18n="options.scrollDelayDesc"></div>
+          </div>
+          <select id="scroll-delay"></select>
+        </div>
+
+        <div class="row">
+          <div class="text">
+            <label class="name" for="wait-images" data-i18n="options.waitImages"></label>
+            <div class="desc" data-i18n="options.waitImagesDesc"></div>
+          </div>
+          <select id="wait-images"></select>
+        </div>
+
+        <div class="row">
+          <div class="text">
+            <label class="name" for="save-folder" data-i18n="options.saveFolder"></label>
+            <div class="desc" data-i18n="options.saveFolderDesc"></div>
+            <div class="error" id="folder-error" hidden></div>
+          </div>
+          <div class="folder">
+            <input id="save-folder" type="text" data-i18n-placeholder="options.saveFolderPlaceholder" />
+            <button class="btn" id="save-folder-btn"><span data-i18n="common.save"></span></button>
+          </div>
+        </div>
+
+        <div class="row">
+          <div class="text">
+            <label class="name" for="ask-where" data-i18n="options.askWhere"></label>
+            <div class="desc" data-i18n="options.askWhereDesc"></div>
+          </div>
+          <input type="checkbox" class="switch" id="ask-where" />
+        </div>
+
+        <div class="row">
+          <div class="text">
+            <label class="name" for="auto-download" data-i18n="options.autoDownload"></label>
+            <div class="desc" data-i18n="options.autoDownloadDesc"></div>
+            <div class="warn" data-i18n="options.autoDownloadWarn"></div>
+          </div>
+          <input type="checkbox" class="switch" id="auto-download" />
+        </div>
+
+        <div class="row">
+          <div class="text">
+            <label class="name" for="shrink-copy" data-i18n="options.shrinkCopy"></label>
+            <div class="desc" data-i18n="options.shrinkCopyDesc"></div>
+          </div>
+          <input type="checkbox" class="switch" id="shrink-copy" />
+        </div>
+      </section>
+
+      <section class="card">
+        <h2 data-i18n="options.editorSection"></h2>
+        <div class="row">
+          <div class="text">
+            <label class="name" for="smooth-strokes" data-i18n="options.smoothStrokes"></label>
+            <div class="desc" data-i18n="options.smoothStrokesDesc"></div>
+          </div>
+          <input type="checkbox" class="switch" id="smooth-strokes" />
+        </div>
+      </section>
+
+      <section class="card">
+        <h2 data-i18n="options.pdfSection"></h2>
+        <div class="papers" id="papers"></div>
+
+        <div class="row" id="orientation-row">
+          <div class="text">
+            <div class="name" data-i18n="options.orientation"></div>
+            <div class="desc" data-i18n="options.orientationDesc"></div>
+          </div>
+          <div class="seg" id="orientation">
+            <button data-value="portrait" data-i18n="options.portrait"></button>
+            <button data-value="landscape" data-i18n="options.landscape"></button>
+          </div>
+        </div>
+
+        <div class="row">
+          <div class="text">
+            <label class="name" for="smart-break" data-i18n="options.smartBreak"></label>
+            <div class="desc" data-i18n="options.smartBreakDesc"></div>
+          </div>
+          <input type="checkbox" class="switch" id="smart-break" />
+        </div>
+        <div class="row">
+          <div class="text">
+            <label class="name" for="pdf-links" data-i18n="options.pdfLinks"></label>
+            <div class="desc" data-i18n="options.pdfLinksDesc"></div>
+          </div>
+          <input type="checkbox" class="switch" id="pdf-links" />
+        </div>
+        <div class="row">
+          <div class="text">
+            <label class="name" for="pdf-header" data-i18n="options.pdfHeader"></label>
+            <div class="desc" data-i18n="options.pdfHeaderDesc"></div>
+          </div>
+          <input type="checkbox" class="switch" id="pdf-header" />
+        </div>
+        <div class="row">
+          <div class="text">
+            <label class="name" for="pdf-preview" data-i18n="options.pdfPreview"></label>
+            <div class="desc" data-i18n="options.pdfPreviewDesc"></div>
+          </div>
+          <input type="checkbox" class="switch" id="pdf-preview" />
+        </div>
+      </section>
+
+      <section class="card">
+        <h2 data-i18n="options.shortcutSection"></h2>
+        <div class="row">
+          <div class="text">
+            <div class="desc" data-i18n="options.shortcutDesc"></div>
+          </div>
+          <button class="btn" id="shortcut-btn" data-icon="keyboard"><span data-i18n="options.shortcutChange"></span></button>
+        </div>
+        <!-- 단축키 3가지 (PR #1 요청) -->
+        <div id="shortcut-list"></div>
+      </section>
+
+      <section class="card">
+        <h2 data-i18n="options.privacyTitle"></h2>
+        <p class="desc" data-i18n="options.privacyBody"></p>
+      </section>
+    </div>
+    <script type="module" src="./pages/options/options.ts"></script>
+  </body>
+</html>

@@ -1,0 +1,62 @@
+import { describe, expect, it } from 'vitest';
+import { CORNER_ANGLE, smoothStroke } from '../src/core/smooth';
+
+/** 점 목록에서 직선 y = 0으로부터 가장 먼 거리 */
+const maxDev = (p: number[]) => Math.max(...p.filter((_, i) => i % 2 === 1).map(Math.abs));
+
+describe('smoothStroke: 펜·형광펜 선 보정 (PR #1 세 번째 요청)', () => {
+  // 목적: 점이 2개(가장 짧은 선)일 때 선이 사라지거나 바뀌는 결함을 막는다
+  it('[BVA] TC-SMOOTH-01 점 2개(보정 최소 3개 - 1) → 그대로', () => {
+    expect(smoothStroke([0, 0, 10, 5])).toEqual([0, 0, 10, 5]);
+  });
+
+  // 목적: 보정할 수 있는 가장 짧은 선(점 3개)에서 가운데 점이 보정되지 않는 결함을 막는다
+  it('[BVA] TC-SMOOTH-02 점 3개(최소, 완만한 굽이) → 끝점은 그대로, 가운데 점은 이웃 쪽으로 당겨짐', () => {
+    const r = smoothStroke([0, 0, 10, 2, 20, 0]);
+    expect([r[0], r[1], r[4], r[5]]).toEqual([0, 0, 20, 0]);
+    expect(r[3]).toBeLessThan(2);
+  });
+
+  // 목적: 손떨림처럼 위아래로 흔들린 선이 보정 뒤에도 그대로 들쭉날쭉한 결함을 막는다
+  it('[EP] TC-SMOOTH-03 위아래로 ±4px 흔들린 가로선 → 흔들림이 절반 이하로 줄어듦', () => {
+    const zig = Array.from({ length: 20 }, (_, i) => [i * 5, i % 2 ? 4 : -4]).flat();
+    zig[1] = 0;
+    zig[zig.length - 1] = 0;
+    expect(maxDev(smoothStroke(zig).slice(8, -8))).toBeLessThanOrEqual(2);
+  });
+
+  // 목적: 이미 곧은 선을 보정하다 휘게 만드는 결함을 막는다
+  it('[EP] TC-SMOOTH-04 곧은 선 → 그대로 곧음', () => {
+    const line = Array.from({ length: 10 }, (_, i) => [i * 10, i * 5]).flat();
+    const r = smoothStroke(line);
+    for (let i = 0; i < r.length; i += 2) expect(r[i + 1]).toBeCloseTo(r[i] / 2, 6);
+  });
+});
+
+/** (0,0)에서 오른쪽으로 2px 간격 20개, 꼭짓점 (40,0)에서 turnDeg만큼 꺾어 다시 20개 */
+function bent(turnDeg: number): number[] {
+  const out: number[] = [];
+  for (let i = 0; i <= 20; i++) out.push(i * 2, 0);
+  const a = (turnDeg * Math.PI) / 180;
+  for (let i = 1; i <= 20; i++) out.push(40 + i * 2 * Math.cos(a), i * 2 * Math.sin(a));
+  return out;
+}
+/** 꼭짓점(20번째 점)이 보정 뒤 옮겨진 거리 */
+const vertexShift = (p: number[]) => Math.hypot(smoothStroke(p)[40] - 40, smoothStroke(p)[41]);
+
+describe('smoothStroke: 일부러 꺾은 모서리 남기기 (PR #1 네 번째 요청)', () => {
+  // 목적: 일부러 뾰족하게 꺾은 꼭짓점(90도)이 보정으로 둥글게 깎이는 결함을 막는다
+  it('[EP] TC-SMOOTH-05 90도로 꺾은 선 → 꼭짓점 위치 그대로', () => {
+    expect(vertexShift(bent(90))).toBe(0);
+  });
+
+  // 목적: 꺾임 기준보다 덜 꺾인 완만한 굽이까지 모서리로 남겨 보정이 안 되는 결함을 막는다
+  it('[BVA] TC-SMOOTH-06 꺾은 각도 = 기준-1도 → 꼭짓점도 다듬어짐(옮겨짐)', () => {
+    expect(vertexShift(bent(CORNER_ANGLE - 1))).toBeGreaterThan(0.1);
+  });
+
+  // 목적: 기준만큼 꺾었는데 모서리로 보지 않고 깎는 결함을 막는다
+  it('[BVA] TC-SMOOTH-07 꺾은 각도 = 기준+1도 → 꼭짓점 그대로', () => {
+    expect(vertexShift(bent(CORNER_ANGLE + 1))).toBe(0);
+  });
+});
