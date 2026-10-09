@@ -268,6 +268,8 @@ export const ko = {
     pdfLinksDesc: '페이지의 링크를 PDF에서도 누를 수 있어요.',
     pdfHeader: '첫 페이지 위에 주소와 날짜 넣기',
     pdfHeaderDesc: 'PDF 첫 페이지 맨 위에 페이지 주소와 촬영 시각을 넣어요.',
+    pdfPreview: 'PDF 저장 전에 미리보기',
+    pdfPreviewDesc: '페이지가 나뉘는 곳을 미리 보고 고친 뒤 저장해요. 끄면 자동으로 나눠 바로 저장해요.',
     shortcutCurrent: (key: string) => `지금 단축키: ${key}`,
     shortcutNone: '지금 정해진 단축키가 없어요.',
     shortcutNotSet: '설정 안 됨',

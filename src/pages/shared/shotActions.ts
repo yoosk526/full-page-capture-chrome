@@ -14,7 +14,7 @@ import { outputLayout } from '../../core/stamp';
 export async function saveShot(shot: ShotRecord, format: FileFormat, forceAsk = false): Promise<void> {
   try {
     const settings = await loadSettings();
-    if (format === 'pdf') {
+    if (format === 'pdf' && settings.pdfPreview) {
       // PDF는 먼저 페이지가 나뉘는 모양을 보여 주고 고칠 수 있게 한다 (PR #1 세 번째 요청)
       const blob = await openPdfPreview(await renderShot(shot), shot, settings);
       if (!blob) return;

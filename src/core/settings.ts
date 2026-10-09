@@ -22,6 +22,8 @@ export interface Settings {
   pdfSmartBreak: boolean;
   pdfLinks: boolean;
   pdfHeader: boolean;
+  /** PDF로 저장하기 전에 미리보기 창 띄우기 (Q47 답변 ②) */
+  pdfPreview: boolean;
   /** 주소·날짜 도장의 마지막 선택값 (EXP-06). TODO(미확인): 다음 촬영에도 유지하는지 모름 → 유지한다 */
   stampPosition: StampPosition;
   stampDateFormat: StampDateFormat;
@@ -48,6 +50,7 @@ export const DEFAULT_SETTINGS: Settings = {
   pdfSmartBreak: true,
   pdfLinks: true,
   pdfHeader: false,
+  pdfPreview: true,
   stampPosition: 'none',
   stampDateFormat: 'date',
   smoothStrokes: true,
@@ -79,6 +82,7 @@ export function normalizeSettings(raw: unknown): Settings {
     pdfSmartBreak: bool(r.pdfSmartBreak, d.pdfSmartBreak),
     pdfLinks: bool(r.pdfLinks, d.pdfLinks),
     pdfHeader: bool(r.pdfHeader, d.pdfHeader),
+    pdfPreview: bool(r.pdfPreview, d.pdfPreview),
     stampPosition: oneOf(r.stampPosition, ['none', 'top', 'bottom', 'mac', 'windows'] as const, d.stampPosition),
     stampDateFormat: oneOf(r.stampDateFormat, ['date', 'datetime', 'iso', 'none'] as const, d.stampDateFormat),
     smoothStrokes: bool(r.smoothStrokes, d.smoothStrokes),

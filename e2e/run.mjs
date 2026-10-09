@@ -385,6 +385,20 @@ async function exportFlow(context, worker, extId, id) {
       writeFileSync(join(OUT, 'export.pdf'), readFileSync(d.filename));
     }
   }
+  // 설정에서 미리보기를 끄면 창 없이 바로 저장된다 (Q47 답변 ②)
+  await worker.evaluate(() =>
+    chrome.storage.local.set({ settings: { saveFolder: 'shots', pdfPaper: 'a4', pdfHeader: true, pdfLinks: true, pdfSmartBreak: true, pdfPreview: false } }),
+  );
+  const pdfBefore = await worker.evaluate(async () => (await chrome.downloads.search({ mime: 'application/pdf' })).length);
+  await page.locator('#save-more').click();
+  await page.locator('#save-menu button[data-format="pdf"]').click();
+  let pdfAfter = pdfBefore;
+  for (let k = 0; k < 50 && pdfAfter === pdfBefore; k++) {
+    await page.waitForTimeout(200);
+    pdfAfter = await worker.evaluate(async () => (await chrome.downloads.search({ mime: 'application/pdf' })).length);
+  }
+  check('저장: 미리보기를 끄면 창 없이 바로 PDF 저장', pdfAfter === pdfBefore + 1 && (await page.locator('#pdf-preview').count()) === 0, `${pdfBefore} → ${pdfAfter}`);
+
   await page.locator('#copy-btn').click();
   await page.waitForFunction(() => document.querySelector('.toast')?.textContent.includes('복사'));
   const toastText = await page.locator('.toast').textContent();
@@ -428,6 +442,12 @@ async function optionsFlow(context, worker, extId) {
   await page.locator('#smooth-strokes').click();
   await page.waitForTimeout(200);
   check('설정: 펜 선 부드럽게 보정은 처음에 켜짐, 끄면 저장됨', smoothDefault && (await stored()).smoothStrokes === false);
+  const previewDefault = await page.locator('#pdf-preview').isChecked();
+  await page.locator('#pdf-preview').click();
+  await page.waitForTimeout(200);
+  check('설정: PDF 저장 전에 미리보기는 처음에 켜짐, 끄면 저장됨', previewDefault && (await stored()).pdfPreview === false);
+  await page.locator('#pdf-preview').click();
+  await page.waitForTimeout(200);
   await page.locator('#smooth-strokes').click();
   await page.waitForTimeout(200);
   await page.screenshot({ path: join(OUT, 'options.png'), fullPage: true });

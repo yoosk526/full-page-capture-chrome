@@ -49,6 +49,7 @@ function render(): void {
   ($('#smart-break') as HTMLInputElement).checked = settings.pdfSmartBreak;
   ($('#pdf-links') as HTMLInputElement).checked = settings.pdfLinks;
   ($('#pdf-header') as HTMLInputElement).checked = settings.pdfHeader;
+  ($('#pdf-preview') as HTMLInputElement).checked = settings.pdfPreview;
 
   const papers = $('#papers');
   papers.textContent = '';
@@ -126,6 +127,7 @@ async function main(): Promise<void> {
   bindSwitch('smart-break', 'pdfSmartBreak');
   bindSwitch('pdf-links', 'pdfLinks');
   bindSwitch('pdf-header', 'pdfHeader');
+  bindSwitch('pdf-preview', 'pdfPreview');
   document.querySelectorAll<HTMLButtonElement>('#orientation button').forEach((b) =>
     b.addEventListener('click', () => void save({ pdfOrientation: b.dataset.value as Settings['pdfOrientation'] })),
   );
