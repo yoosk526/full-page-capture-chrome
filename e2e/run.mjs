@@ -719,6 +719,31 @@ async function popupFlow(context, worker, origin) {
   }
   await page.goto(origin + '/long.html');
 
+  // 확장 프로그램을 업데이트(↻)한 뒤 이미 열려 있던 탭: 옛 버전이 남긴 "준비됨" 표시만 있고 응답할 코드는 없는 상태 (Issue #3 후속)
+  {
+    await page.goto(origin + '/framed.html');
+    await page.bringToFront();
+    await worker.evaluate(async (url) => {
+      const [t] = await chrome.tabs.query({ url });
+      await chrome.scripting.executeScript({ target: { tabId: t.id }, func: () => { window.__hanjangCapture = true; } });
+    }, origin + '/framed.html');
+    await worker.evaluate(() => chrome.action.openPopup());
+    pop = await attachPopup(context, page);
+    await new Promise((r) => setTimeout(r, 300));
+    await pop.eval(`document.getElementById('choose-area').click()`);
+    await page.waitForFunction(() => !!document.getElementById('__hanjang-area'), null, { timeout: 5000 });
+    resultPromise = context.waitForEvent('page', { predicate: (p) => p.url().includes('result.html?id='), timeout: 30000 });
+    await page.mouse.move(100, 150);
+    await page.mouse.down();
+    await page.mouse.move(400, 350, { steps: 4 });
+    await page.mouse.up();
+    result = await resultPromise.catch(() => null);
+    const failedShown = await page.evaluate(() => document.body.innerText.includes('찍지 못했어요'));
+    check('영역 고르기: 업데이트 전부터 열려 있던 탭에서도 찍힘(옛 버전 표시가 남은 상태)', !!result && !failedShown, `결과 탭 ${!!result}, 실패 안내 ${failedShown}`);
+    if (result) await result.close();
+  }
+  await page.goto(origin + '/long.html');
+
   // Esc로 영역 고르기 취소
   await page.bringToFront();
   await worker.evaluate(() => chrome.action.openPopup());

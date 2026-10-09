@@ -5,7 +5,7 @@ import { SCROLLER_ATTR, type ContentRequest, type PageMetrics } from '../shared/
 
 declare global {
   interface Window {
-    __hanjangCapture?: boolean;
+    __hanjangCapture?: unknown;
   }
 }
 
@@ -296,13 +296,17 @@ async function handle(req: ContentRequest): Promise<unknown> {
   }
 }
 
-if (!window.__hanjangCapture) {
-  window.__hanjangCapture = true;
-  chrome.runtime.onMessage.addListener((req: ContentRequest, _sender, sendResponse) => {
-    handle(req).then(
-      (value) => sendResponse({ ok: true, value }),
-      (err) => sendResponse({ ok: false, error: String(err) }),
-    );
-    return true;
-  });
-}
+// 받는 쪽은 넣을 때마다 새로 건다. 확장 프로그램을 업데이트(↻)하면 이미 열려 있던 탭에는
+// 옛 버전이 남긴 표시만 있고 응답할 코드는 끊겨 있어서, 표시만 보고 건너뛰면 촬영이 실패한다 (Issue #3 후속)
+type Listener = Parameters<typeof chrome.runtime.onMessage.addListener>[0];
+const listener: Listener = (req: ContentRequest, _sender, sendResponse) => {
+  handle(req).then(
+    (value) => sendResponse({ ok: true, value }),
+    (err) => sendResponse({ ok: false, error: String(err) }),
+  );
+  return true;
+};
+const previous = window.__hanjangCapture;
+if (typeof previous === 'function') chrome.runtime.onMessage.removeListener(previous as Listener);
+window.__hanjangCapture = listener;
+chrome.runtime.onMessage.addListener(listener);

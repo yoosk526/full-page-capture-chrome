@@ -45,7 +45,7 @@ export const ko = {
   },
   area: {
     hint: '찍을 부분을 마우스로 끌어서 고르세요 · Esc를 누르면 취소',
-    failed: '찍지 못했어요',
+    failed: '찍지 못했어요. 페이지를 새로고침(F5)한 뒤 다시 해 보세요.',
   },
   result: {
     title: '스크린샷 완성',
