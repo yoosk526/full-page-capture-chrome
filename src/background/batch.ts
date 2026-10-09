@@ -2,6 +2,7 @@
 import type { Settings } from '../core/settings';
 import type { WorkerToBatch } from '../shared/messages';
 import { loadSettings } from '../shared/settingsStore';
+import { autoDownloadShots } from './autoDownload';
 import { CaptureSession } from './capture';
 
 /** 페이지가 다 열릴 때까지 기다리는 최대 시간 */
@@ -56,8 +57,9 @@ export class BatchRun {
           if (this.stopped) break;
           await chrome.windows.update(win.id, { focused: true });
           this.current = new CaptureSession(tabId, win.id);
-          // 일괄 촬영은 "파일 자동 다운로드"와 관계없이 내 스크린샷에 보관만 한다. TODO(추정)
-          await this.current.run(settings);
+          const shots = await this.current.run(settings);
+          // "파일 자동 다운로드"가 켜져 있으면 파일로도 내려받는다 (Q44 답변 ②). 위치 묻기 창은 띄우지 않는다
+          if (settings.autoDownload) await autoDownloadShots(shots, { ...settings, askWhereToSave: false });
           ok++;
           this.report({ kind: 'item', index: i, total: urls.length, url, status: 'ok' });
         } catch (e) {

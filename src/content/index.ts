@@ -22,6 +22,8 @@ let fixedEls: HTMLElement[] = [];
 let saved: SavedStyle[] = [];
 let originalScroll = { x: 0, y: 0, inner: 0 };
 let currentIndex = 0;
+/** 페이지 일부 촬영 중이면 true */
+let areaMode = false;
 
 function setStyle(el: HTMLElement, prop: string, value: string): void {
   saved.push({ el, prop, value: el.style.getPropertyValue(prop), priority: el.style.getPropertyPriority(prop) });
@@ -130,7 +132,8 @@ function windowCanScroll(): boolean {
 
 function applyCaptureStyles(): void {
   // 스크롤 막대가 결과에 찍히지 않게 숨기고, 부드러운 스크롤을 끈다
-  addScrollbarStyle();
+  if (areaMode) setStyle(document.documentElement, 'scroll-behavior', 'auto');
+  else addScrollbarStyle();
   if (target) setStyle(target, 'scroll-behavior', 'auto');
   // 고정·스티키 요소는 첫 조각에서만 보이게 한다 (CAP-06)
   if (currentIndex > 0) hideFixed();
@@ -146,18 +149,19 @@ function currentScroll(): number {
   return target ? target.scrollTop : window.scrollY;
 }
 
-async function prepare(): Promise<PageMetrics> {
+async function prepare(area = false): Promise<PageMetrics> {
   originalScroll = { x: window.scrollX, y: window.scrollY, inner: 0 };
   currentIndex = 0;
   restoreStyles();
   target = null;
+  areaMode = area;
   // 촬영할 때와 같은 모양(스크롤 막대 없음)에서 크기와 링크 위치를 잰다
-  addScrollbarStyle();
+  if (!area) addScrollbarStyle();
   await nextFrame();
 
   const vh = window.innerHeight;
   const docH = documentHeight();
-  if (docH <= vh + 1 || !windowCanScroll()) target = findInnerScroller(vh);
+  if (!area && (docH <= vh + 1 || !windowCanScroll())) target = findInnerScroller(vh);
   applyCaptureStyles();
   await nextFrame();
 
@@ -184,6 +188,7 @@ async function prepare(): Promise<PageMetrics> {
     regionTop,
     regionHeight,
     contentHeight,
+    scrollY: window.scrollY,
     documentScroll: !target,
     background: pickBackgroundColor([
       getComputedStyle(document.documentElement).backgroundColor,
@@ -199,7 +204,7 @@ async function scrollTo(y: number, index: number): Promise<number> {
   currentIndex = index;
   if (index > 0) hideFixed();
   if (target) target.scrollTop = y;
-  else window.scrollTo(0, y);
+  else window.scrollTo(areaMode ? window.scrollX : 0, y);
   await nextFrame();
   return currentScroll();
 }
@@ -236,7 +241,7 @@ function restore(): void {
 async function handle(req: ContentRequest): Promise<unknown> {
   switch (req.kind) {
     case 'prepare':
-      return prepare();
+      return prepare(req.area);
     case 'scrollTo':
       return scrollTo(req.y, req.index);
     case 'waitImages':
