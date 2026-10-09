@@ -136,27 +136,40 @@ async function editorFlow(context, extId, id) {
     await ed.keyboard.press(process.platform === 'darwin' ? 'Meta+z' : 'Control+z');
   }
 
-  // 펜으로 지그재그를 그리면 손을 뗄 때 선이 부드럽게 다듬어진다 (PR #1 세 번째 요청, 설정 기본 켜짐)
+  // 펜 선 보정 (PR #1 세 번째·네 번째 요청, 설정 기본 켜짐)
+  // - 손떨림처럼 잘게 흔들린 선은 손을 뗄 때 다듬어진다
+  // - 일부러 뾰족하게 꺾은 곳(V자 꼭짓점)은 그대로 남는다
   {
-    await ed.keyboard.press('p');
+    const lastPoints = () =>
+      ed.evaluate(async (id) => {
+        const db = await new Promise((r) => { const q = indexedDB.open('hanjang-capture'); q.onsuccess = () => r(q.result); });
+        const shot = await new Promise((r) => { const q = db.transaction('shots').objectStore('shots').get(id); q.onsuccess = () => r(q.result); });
+        return shot.doc.objects.at(-1).points;
+      }, id);
+    const z = parseFloat(await ed.locator('#zoom-label').textContent()) / 100;
+    const drawPen = async (pts) => {
+      await ed.keyboard.press('p');
+      await ed.mouse.move(...pts[0]);
+      await ed.mouse.down();
+      for (const p of pts.slice(1)) await ed.mouse.move(...p);
+      await ed.mouse.up();
+      await ed.waitForTimeout(1500);
+    };
     const [zx, zy] = at(0.3, 0.45);
-    await ed.mouse.move(zx, zy);
-    await ed.mouse.down();
-    for (let k = 1; k <= 30; k++) await ed.mouse.move(zx + k * 6, zy + (k % 2 ? 8 : -8));
-    await ed.mouse.move(zx + 186, zy);
-    await ed.mouse.up();
-    await ed.waitForTimeout(1500);
-    const pts = await ed.evaluate(async (id) => {
-      const db = await new Promise((r) => { const q = indexedDB.open('hanjang-capture'); q.onsuccess = () => r(q.result); });
-      const shot = await new Promise((r) => { const q = db.transaction('shots').objectStore('shots').get(id); q.onsuccess = () => r(q.result); });
-      return shot.doc.objects.at(-1).points;
-    }, id);
-    const ys = pts.filter((_, i) => i % 2 === 1).slice(4, -4);
+    await drawPen([[zx, zy], ...Array.from({ length: 40 }, (_, k) => [zx + (k + 1) * 3, zy + (k % 2 ? 2 : -2)]), [zx + 123, zy]]);
+    const ys = (await lastPoints()).filter((_, i) => i % 2 === 1).slice(4, -4);
     const mid = (Math.max(...ys) + Math.min(...ys)) / 2;
     const dev = Math.max(...ys.map((y) => Math.abs(y - mid)));
-    const z = parseFloat(await ed.locator('#zoom-label').textContent()) / 100;
-    check('편집기: 펜 지그재그 → 손을 떼면 흔들림이 절반 이하로 다듬어짐', dev <= (8 / z) / 2, `흔들림 ${dev.toFixed(1)}px (원래 ${(8 / z).toFixed(1)}px)`);
-    await ed.keyboard.press('Escape');
+    check('편집기: 펜 손떨림(±2px) → 손을 떼면 흔들림이 절반 이하로 다듬어짐', dev <= 2 / z / 2, `흔들림 ${dev.toFixed(2)}px (원래 ${(2 / z).toFixed(2)}px)`);
+    await ed.keyboard.press(process.platform === 'darwin' ? 'Meta+z' : 'Control+z');
+
+    const [vx, vy] = at(0.3, 0.4);
+    await drawPen([[vx, vy], ...Array.from({ length: 20 }, (_, k) => [vx + (k + 1) * 3, vy + (k + 1) * 4]), ...Array.from({ length: 20 }, (_, k) => [vx + 60 + (k + 1) * 3, vy + 80 - (k + 1) * 4])]);
+    const vp = await lastPoints();
+    const vys = vp.filter((_, i) => i % 2 === 1);
+    // 꼭짓점이 깎이면 가장 아래 점이 올라와 V자 깊이가 얕아진다
+    const tipY = Math.max(...vys);
+    check('편집기: 펜으로 일부러 뾰족하게 꺾은 V자 → 꼭짓점이 깎이지 않음', tipY - Math.min(...vys) >= 80 / z - 2, `꼭짓점 깊이 ${(tipY - Math.min(...vys)).toFixed(1)}px (원래 ${(80 / z).toFixed(1)}px)`);
     await ed.keyboard.press(process.platform === 'darwin' ? 'Meta+z' : 'Control+z');
   }
 
