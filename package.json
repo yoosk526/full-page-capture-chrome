@@ -1,6 +1,6 @@
 {
   "name": "full-page-capture-chrome",
-  "version": "1.4.2",
+  "version": "1.4.6",
   "private": true,
   "description": "한장캡처: 전체 페이지 스크롤 캡처 + 편집기 (크롬 확장 프로그램)",
   "type": "module",
@@ -13,6 +13,7 @@
     "icons": "node scripts/make-icons.mjs",
     "package": "npm run build && node scripts/package.mjs",
     "e2e": "node e2e/run.mjs",
+    "e2e:real": "xvfb-run -a -s \"-screen 0 2600x2000x24\" node e2e/real-input.mjs /plain /framed",
     "test:doc": "node scripts/test-cases.mjs"
   },
   "repository": {

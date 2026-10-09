@@ -6,7 +6,7 @@
 - 근거 표기: [확인]/[공식]/[제안]은 구현 대상, [추정]은 가장 단순하게 구현하고 `TODO(추정)`, [미확인]은 `docs/OPEN_QUESTIONS.md`에 질문으로 적고 막히면 가장 단순한 기본 동작 + `TODO(미확인)`.
 - 만들지 않는 것: Google Drive 저장(EXP-07, SET-33), 계정 로그인과 Pro 안내(SET-05, RES-07). 2단계 중 증거 모드(SET-30)와 검색 가능한 PDF(SET-31)는 사용자가 요청할 때만. 일괄 촬영(SET-32)은 PR #1 요청으로 만들었다.
 - 계정 없음, 분석 도구 없음, 네트워크 요청 없음, 파일은 기기에만 저장(SET-02).
-- 명령: `npm run build`(타입 검사 + 빌드, 결과는 `dist/`), `npm test`, `npm run coverage`, `npm run test:doc`(테스트 실행 + `docs/TEST_CASES.md` 다시 만들기), `npm run e2e`(빌드 후 headless Chromium 시험), `npm run package`(설치용 압축 파일을 `release/`에 만든다. 최종 PR 직전에만 실행).
+- 명령: `npm run build`(타입 검사 + 빌드, 결과는 `dist/`), `npm test`, `npm run coverage`, `npm run test:doc`(테스트 실행 + `docs/TEST_CASES.md` 다시 만들기), `npm run e2e`(빌드 후 headless Chromium 시험), `npm run e2e:real`(실제 설치본 권한 그대로 가상 화면에서 진짜 키·마우스로 "페이지 일부" 시험, xvfb-run·xdotool 필요), `npm run package`(설치용 압축 파일을 `release/`에 만든다. 최종 PR 직전에만 실행).
 - 순수 로직은 `src/core/`에 두고 Chrome API를 쓰지 않는다. 테스트는 `tests/`에 있다.
 
 # 읽는 사람

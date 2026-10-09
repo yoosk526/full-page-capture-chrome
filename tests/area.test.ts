@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   AREA_MIN_CSS,
+  AREA_SNAP_TOLERANCE,
   AUTO_SCROLL_EDGE,
   AUTO_SCROLL_MAX,
   AUTO_SCROLL_RANGE,
@@ -107,5 +108,20 @@ describe('areaScrollTarget / areaChunk: 화면보다 긴 영역 나눠 찍기 (Q
   // 목적: 스크롤 상자 아래(바닥 막대)까지 찍혀 상자 내용 사이에 끼는 결함을 막는다
   it('[EP] TC-ACHK-07 스크롤 상자 → 상자 아래 끝까지만 붙임', () => {
     expect(areaChunk(1500, 3000, 1420, 80, 660)).toEqual({ srcY: 80, height: 580 });
+  });
+
+  // 목적: 소수점 위치(맥 레티나·트랙패드)로 스크롤해 브라우저가 반올림하면 남은 부분이 화면 위로 밀려 찍지 못하는 결함을 막는다 (Issue #3)
+  it('[EP] TC-ACHK-08 남은 부분 시작이 소수점(1500.7) → 내림한 위치(1500)로 스크롤', () => {
+    expect(areaScrollTarget(1500.7, 3000, 1000, 0, VH, 5000)).toBe(1500);
+  });
+
+  // 목적: 스크롤이 허용 오차만큼 더 내려간 경우까지 "붙일 것이 없음"으로 보아 아무것도 못 찍는 결함을 막는다 (Issue #3)
+  it('[BVA] TC-ACHK-09 실제 스크롤 = 남은 시작 + 허용 오차 → 화면 맨 위부터 붙임', () => {
+    expect(areaChunk(1500, 2000, 1500 + AREA_SNAP_TOLERANCE, 0, VH)).toEqual({ srcY: 0, height: 500 - AREA_SNAP_TOLERANCE });
+  });
+
+  // 목적: 오차를 넘게 어긋났는데(내용 일부가 빠짐) 그대로 붙여 이음매가 틀어지는 결함을 막는다
+  it('[BVA] TC-ACHK-10 실제 스크롤 = 남은 시작 + 허용 오차 + 0.01 → 붙이지 않음(null)', () => {
+    expect(areaChunk(1500, 2000, 1500 + AREA_SNAP_TOLERANCE + 0.01, 0, VH)).toBeNull();
   });
 });

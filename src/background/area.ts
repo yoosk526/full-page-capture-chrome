@@ -48,6 +48,7 @@ export async function captureArea(tab: chrome.tabs.Tab, msg: AreaSelected): Prom
     let covered = top;
     let current = m.scrollY;
     let lastCaptureAt: number | null = null;
+    let drawn = false;
     // 스크롤하면 내용이 보이는 구간 (창 스크롤이면 화면 전체, 스크롤 상자면 그 상자의 구간)
     const regionTop = m.regionTop;
     for (let i = 0; covered < bottom; i++) {
@@ -75,22 +76,28 @@ export async function captureArea(tab: chrome.tabs.Tab, msg: AreaSelected): Prom
           const maxH = Math.min(MAX_PART_HEIGHT, Math.floor(MAX_PART_AREA / wPx)) / scale;
           bottom = Math.min(bottom, top + Math.floor(maxH));
           canvas = new OffscreenCanvas(wPx, toDeviceSpan(0, bottom - top, scale).height);
+          const ctx = canvas.getContext('2d')!;
+          ctx.fillStyle = m.background;
+          ctx.fillRect(0, 0, canvas.width, canvas.height);
         }
         const chunk = fitsNow ? areaChunk(covered, bottom, actual, 0, vh) : areaChunk(covered, bottom, actual, regionTop, Math.min(vh, m.regionTop + m.regionHeight));
         if (!chunk) break; // 스크롤이 더 되지 않는다
+        // 실제로 붙이는 문서 위치(반올림 어긋남을 흡수한 위치)
+        const docY = actual + chunk.srcY;
         const src = toDeviceSpan(chunk.srcY, chunk.height, scale);
-        const dest = toDeviceSpan(covered - top, chunk.height, scale);
+        const dest = toDeviceSpan(docY - top, chunk.height, scale);
         const sx = Math.round(x0 * scale);
         canvas
           .getContext('2d')!
           .drawImage(bitmap, sx, src.start, canvas.width, dest.height, 0, dest.start, canvas.width, dest.height);
-        covered += chunk.height;
+        covered = docY + chunk.height;
+        drawn = true;
       } finally {
         bitmap.close();
       }
     }
     await send(tabId, { kind: 'restore' });
-    if (!canvas) throw new Error('nothing captured');
+    if (!canvas || !drawn) throw new Error(`nothing captured (top ${top}, scroll ${current})`);
 
     const shot: ShotRecord = {
       id: newId(),

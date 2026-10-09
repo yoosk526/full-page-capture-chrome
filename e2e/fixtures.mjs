@@ -14,6 +14,13 @@ export const PAGES = {
   // 부드러운 스크롤을 쓰는 페이지 (요즘 사이트에 흔함): 영역 고르기 자동 스크롤 확인용
   '/smooth.html': `<!doctype html><html style="scroll-behavior:smooth"><head><title>부드러운 스크롤</title></head><body style="margin:0">
   ${Array.from({ length: 8 }, (_, i) => `<div style="height:500px;background:hsl(${i * 45},60%,50%)"></div>`).join('')}</body></html>`,
+  // 본문이 같은 사이트의 틀(iframe) 안에서 스크롤되는 페이지 (네이버 블로그 등): Issue #3
+  '/framed.html': `<!doctype html><html style="height:100%;overflow:hidden"><head><title>틀 안 본문</title></head>
+  <body style="margin:0;height:100%;overflow:hidden"><div style="height:60px;background:#03c75a"></div>
+  <iframe id="mainFrame" src="/framed-post.html" style="display:block;border:0;width:100%;height:calc(100% - 60px)"></iframe></body></html>`,
+  '/framed-post.html': `<!doctype html><html><head><title>본문</title></head><body style="margin:0">
+  ${Array.from({ length: 8 }, (_, i) => `<div style="height:500px;background:hsl(${i * 45},60%,50%)"></div>`).join('')}
+  <div style="height:40px;background:#111"></div></body></html>`,
   '/dark.html': `<!doctype html><html><head><title>어두운 페이지</title><style>
     html{background:#121212;color:#eee}body{margin:0;font:16px sans-serif}
     p{height:400px;margin:0;padding:20px}

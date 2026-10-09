@@ -692,6 +692,7 @@ async function popupFlow(context, worker, origin) {
   for (const [path, edgeY, label] of [
     ['/smooth.html', (vh) => vh - 5, '부드러운 스크롤 페이지'],
     ['/inner.html', (vh) => vh - 45, '페이지 안 스크롤 상자'],
+    ['/framed.html', (vh) => vh - 5, '틀(iframe) 안 본문 (Issue #3)'],
   ]) {
     await page.goto(origin + path);
     await page.bringToFront();
@@ -706,7 +707,7 @@ async function popupFlow(context, worker, origin) {
     await page.mouse.down();
     await page.mouse.move(400, edgeY(h), { steps: 6 });
     await new Promise((r) => setTimeout(r, 1200));
-    const moved = await page.evaluate(() => Math.max(scrollY, document.querySelector('.scroller')?.scrollTop ?? 0));
+    const moved = await page.evaluate(() => Math.max(scrollY, document.querySelector('.scroller')?.scrollTop ?? 0, document.getElementById('mainFrame')?.contentWindow.scrollY ?? 0));
     await page.mouse.up();
     result = await resultPromise.catch(() => null);
     const got = result ? await shotSize(result) : null;
@@ -717,6 +718,77 @@ async function popupFlow(context, worker, origin) {
     }
   }
   await page.goto(origin + '/long.html');
+
+  // 확장 프로그램을 업데이트(↻)한 뒤 이미 열려 있던 탭: 옛 버전이 남긴 "준비됨" 표시만 있고 응답할 코드는 없는 상태 (Issue #3 후속)
+  {
+    await page.goto(origin + '/framed.html');
+    await page.bringToFront();
+    await worker.evaluate(async (url) => {
+      const [t] = await chrome.tabs.query({ url });
+      await chrome.scripting.executeScript({ target: { tabId: t.id }, func: () => { window.__hanjangCapture = true; } });
+    }, origin + '/framed.html');
+    await worker.evaluate(() => chrome.action.openPopup());
+    pop = await attachPopup(context, page);
+    await new Promise((r) => setTimeout(r, 300));
+    await pop.eval(`document.getElementById('choose-area').click()`);
+    await page.waitForFunction(() => !!document.getElementById('__hanjang-area'), null, { timeout: 5000 });
+    resultPromise = context.waitForEvent('page', { predicate: (p) => p.url().includes('result.html?id='), timeout: 30000 });
+    await page.mouse.move(100, 150);
+    await page.mouse.down();
+    await page.mouse.move(400, 350, { steps: 4 });
+    await page.mouse.up();
+    result = await resultPromise.catch(() => null);
+    const failedShown = await page.evaluate(() => document.body.innerText.includes('찍지 못했어요'));
+    check('영역 고르기: 업데이트 전부터 열려 있던 탭에서도 찍힘(옛 버전 표시가 남은 상태)', !!result && !failedShown, `결과 탭 ${!!result}, 실패 안내 ${failedShown}`);
+    if (result) await result.close();
+  }
+  await page.goto(origin + '/long.html');
+
+  // 마우스 위치가 소수점(맥의 레티나 화면·트랙패드 등)일 때: 스크롤 위치가 반올림되어도 찍혀야 한다 (Issue #3 원인)
+  for (const [label, zoom] of [['소수점 위치', 1], ['소수점 위치 + 확대 110%', 1.1]]) {
+    await page.goto(origin + '/long.html');
+    await page.bringToFront();
+    if (zoom !== 1) await worker.evaluate(async (z) => { const [t] = await chrome.tabs.query({ active: true, lastFocusedWindow: true }); await chrome.tabs.setZoom(t.id, z); }, zoom);
+    await page.waitForTimeout(300);
+    await worker.evaluate(() => chrome.action.openPopup());
+    pop = await attachPopup(context, page);
+    await new Promise((r) => setTimeout(r, 300));
+    await pop.eval(`document.getElementById('choose-area').click()`);
+    await page.waitForFunction(() => !!document.getElementById('__hanjang-area'), null, { timeout: 5000 });
+    const h = await page.evaluate(() => innerHeight);
+    resultPromise = context.waitForEvent('page', { predicate: (p) => p.url().includes('result.html?id='), timeout: 40000 });
+    await page.mouse.move(100.3, 200.7);
+    await page.mouse.down();
+    await page.mouse.move(400.6, h - 5.4, { steps: 6 });
+    await new Promise((r) => setTimeout(r, 1200));
+    await page.mouse.up();
+    // 결과 탭이 열리거나 실패 안내가 뜰 때까지 기다린다
+    const failWait = page.waitForFunction(() => document.getElementById('__hanjang-area-failed')?.innerText, null, { timeout: 40000 }).then((h) => h.jsonValue(), () => '');
+    const first = await Promise.race([resultPromise.then((r) => ({ r })), failWait.then((f) => ({ f }))]);
+    result = first.r ?? null;
+    const failText = first.f ?? '';
+    check(`영역 고르기(${label}): 자동 스크롤 뒤 손을 떼면 찍힘`, !!result && !failText, failText.replace(/\n/g, ' / ') || 'ok');
+    if (result) await result.close();
+    if (zoom !== 1) await worker.evaluate(async () => { const [t] = await chrome.tabs.query({ active: true, lastFocusedWindow: true }); await chrome.tabs.setZoom(t.id, 1); });
+  }
+  await page.goto(origin + '/long.html');
+
+  // 찍지 못하면 원인도 함께 보인다 (Issue #3: 사용자 컴퓨터에서만 실패해 원인을 알아야 함). 2px만 끌어 일부러 실패시킨다
+  {
+    await page.bringToFront();
+    await worker.evaluate(() => chrome.action.openPopup());
+    pop = await attachPopup(context, page);
+    await new Promise((r) => setTimeout(r, 300));
+    await pop.eval(`document.getElementById('choose-area').click()`);
+    await page.waitForFunction(() => !!document.getElementById('__hanjang-area'), null, { timeout: 5000 });
+    await page.mouse.move(200, 200);
+    await page.mouse.down();
+    await page.mouse.move(202, 202);
+    await page.mouse.up();
+    const shown = await page.waitForFunction(() => document.getElementById('__hanjang-area-failed')?.innerText ?? '', null, { timeout: 10000 }).then((h) => h.jsonValue(), () => '');
+    check('영역 고르기: 찍지 못하면 원인이 함께 보임', /찍지 못했어요/.test(shown) && /원인: .+/.test(shown), shown.replace(/\n/g, ' / '));
+    await page.evaluate(() => document.getElementById('__hanjang-area-failed')?.remove());
+  }
 
   // Esc로 영역 고르기 취소
   await page.bringToFront();
@@ -817,6 +889,7 @@ async function main() {
       ['긴 페이지(스티키 머리글)', '/long.html', { minH: 3560, pixels: [[5, 'dark', '맨 위는 머리글'], [-5, 'not-white', '맨 아래까지 내용이 있음'], ['vh+5', 'not-dark', '두 번째 조각에 머리글이 반복되지 않음']] }],
       ['어두운 페이지', '/dark.html', { minH: 2400, pixels: [[-5, 'dark', '맨 아래도 어두운 바탕']] }],
       ['본문이 스크롤되는 페이지', '/bodyscroll.html', { minH: 3000, pixels: [[-5, 'not-white', '맨 아래 블록까지 찍힘']] }],
+      ['틀(iframe) 안 본문 (Issue #3)', '/framed.html', { minH: 4000, pixels: [[5, 'not-white', '위쪽 초록 띠'], [-5, 'dark', '틀 안 본문 맨 아래 검은 띠까지 찍힘']] }],
       ['내부 스크롤 영역', '/inner.html', { minH: 2552, pixels: [[5, 'not-white', '앱 머리글 포함'], [-5, 'not-white', '바닥 막대 포함']] }],
     ]) {
       const page = context.pages()[0] ?? (await context.newPage());
