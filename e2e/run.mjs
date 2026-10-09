@@ -336,6 +336,39 @@ async function exportFlow(context, worker, extId, id) {
   for (const fmt of ['png', 'jpg', 'pdf']) {
     await page.locator('#save-more').click();
     await page.locator(`#save-menu button[data-format="${fmt}"]`).click();
+    if (fmt === 'pdf') {
+      // PDF는 미리보기 창에서 나뉘는 곳을 보고 고친 뒤 저장한다 (PR #1 세 번째 요청)
+      await page.waitForSelector('#pdf-preview .pdfp-card');
+      const pages0 = await page.locator('#pdf-preview .pdfp-card').count();
+      const lines0 = await page.locator('#pdf-preview .pdfp-break').count();
+      check('PDF 미리보기: A4로 여러 쪽, 나뉘는 선 = 쪽 수 - 1', pages0 >= 2 && lines0 === pages0 - 1, `${pages0}쪽, 선 ${lines0}개`);
+      await page.screenshot({ path: join(OUT, 'pdf-preview.png') });
+      // 첫 번째 선을 위로 끌면 그 자리로 옮겨지고, 오른쪽 1쪽 그림 아래 여백이 생긴다
+      const line = page.locator('#pdf-preview .pdfp-break').first();
+      await line.scrollIntoViewIfNeeded();
+      const lb = await line.boundingBox();
+      const top0 = await line.evaluate((el) => parseFloat(el.style.top));
+      await page.mouse.move(lb.x + 60, lb.y + lb.height / 2);
+      await page.mouse.down();
+      await page.mouse.move(lb.x + 60, lb.y - 80, { steps: 5 });
+      await page.mouse.up();
+      await page.waitForTimeout(150);
+      const top1 = await line.evaluate((el) => parseFloat(el.style.top));
+      check('PDF 미리보기: 나뉘는 선을 위로 끌면 옮겨짐', Math.abs(top0 - 80 - top1) <= 2, `${top0} → ${top1}`);
+      const mergeOk = await page.locator('#pdf-preview .pdfp-merge').first().isDisabled();
+      check('PDF 미리보기: 합치면 한 쪽에 안 들어가는 선은 합치기 버튼이 꺼짐', mergeOk);
+      await page.screenshot({ path: join(OUT, 'pdf-preview-moved.png') });
+      // Esc로 취소하면 저장되지 않는다
+      const before = await worker.evaluate(async () => (await chrome.downloads.search({})).length);
+      await page.keyboard.press('Escape');
+      await page.waitForTimeout(300);
+      const after = await worker.evaluate(async () => (await chrome.downloads.search({})).length);
+      check('PDF 미리보기: Esc → 창이 닫히고 저장 안 됨', (await page.locator('#pdf-preview').count()) === 0 && after === before);
+      await page.locator('#save-more').click();
+      await page.locator('#save-menu button[data-format="pdf"]').click();
+      await page.waitForSelector('#pdf-preview .pdfp-card');
+      await page.locator('#pdfp-save').click();
+    }
     const d = await waitDownload(fmt);
     // Playwright는 내려받은 파일을 임시 폴더에 다른 이름으로 두므로, 확장이 요청한 경로는 따로 기록해 본다
     const requested = await page.evaluate(() => window.__requested.at(-1));
@@ -345,6 +378,10 @@ async function exportFlow(context, worker, extId, id) {
       const text = readFileSync(d.filename).toString('latin1');
       const count = Number(text.match(/\/Count (\d+)/)?.[1]);
       check('저장: A4 PDF는 여러 페이지 + 링크 포함', count >= 2 && text.includes('/URI (https://example.com/link)'), `페이지 ${count}`);
+      // 마지막 쪽은 그림이 짧아 남는 여백을 그림 바탕색(마지막 구역 색, 흰색 아님)으로 채운다
+      const fills = [...text.matchAll(/([\d.]+) ([\d.]+) ([\d.]+) rg [\d.]+ [\d.]+ [\d.]+ [\d.]+ re f/g)].map((m) => m.slice(1, 4).map(Number));
+      const last = fills.at(-1);
+      check('저장: PDF 남는 여백을 그림 바탕색으로 채움', !!last && !(last[0] > 0.95 && last[1] > 0.95 && last[2] > 0.95), JSON.stringify(last));
       writeFileSync(join(OUT, 'export.pdf'), readFileSync(d.filename));
     }
   }

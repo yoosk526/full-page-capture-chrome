@@ -198,6 +198,22 @@ export const ko = {
     mouseOrArrows: '마우스 또는 화살표 키',
     or: '또는',
   },
+  // PDF로 저장하기 전 미리보기 (PR #1 세 번째 요청)
+  pdfPreview: {
+    title: 'PDF 미리보기',
+    paper: '용지',
+    orientation: '방향',
+    pages: (n: number) => `${n}쪽`,
+    pageLabel: (n: number) => `${n}쪽`,
+    auto: '자동으로 다시 나누기',
+    merge: '앞쪽과 합치기',
+    cantMerge: '합치면 한 쪽에 들어가지 않아요',
+    hint: '왼쪽의 파란 선을 위아래로 끌어 페이지가 나뉘는 곳을 바꿀 수 있어요. 남는 아래 여백은 그림 바탕색으로 채워요.',
+    hintFull: '전체 이미지는 한 페이지로 저장해요. 용지를 고르면 나뉘는 곳을 고칠 수 있어요.',
+    cancel: '취소',
+    save: 'PDF로 저장',
+    preparing: 'PDF를 만드는 중이에요…',
+  },
   options: {
     title: '설정',
     captureSection: '촬영',

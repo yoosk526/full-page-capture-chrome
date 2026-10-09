@@ -5,13 +5,23 @@ import { t } from '../../shared/i18n';
 import { loadSettings } from '../../shared/settingsStore';
 import type { ShotRecord } from '../../shared/types';
 import { toast } from '../../shared/ui';
-import { exportShot, renderShot, renderShotPng } from '../../render/exportShot';
+import { exportShot, renderShot, renderShotPng, shotBaseName } from '../../render/exportShot';
+import { buildDownloadPath } from '../../core/fileName';
+import { openPdfPreview } from './pdfPreview';
 import { needsShrink, shrinkSize } from '../../core/copySize';
 import { outputLayout } from '../../core/stamp';
 
 export async function saveShot(shot: ShotRecord, format: FileFormat, forceAsk = false): Promise<void> {
   try {
     const settings = await loadSettings();
+    if (format === 'pdf') {
+      // PDF는 먼저 페이지가 나뉘는 모양을 보여 주고 고칠 수 있게 한다 (PR #1 세 번째 요청)
+      const blob = await openPdfPreview(await renderShot(shot), shot, settings);
+      if (!blob) return;
+      await downloadBlob(blob, buildDownloadPath(settings.saveFolder, shotBaseName(shot), 'pdf'), forceAsk || settings.askWhereToSave);
+      toast(t.toast.saved);
+      return;
+    }
     const { blob, filename } = await exportShot(shot, format, settings);
     await downloadBlob(blob, filename, forceAsk || settings.askWhereToSave);
     toast(t.toast.saved);

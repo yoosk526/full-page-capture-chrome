@@ -1,0 +1,212 @@
+/* PDF 미리보기 창 (PR #1 세 번째 요청) */
+.pdfp-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 950;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(15, 20, 30, 0.4);
+}
+
+.pdfp {
+  display: flex;
+  flex-direction: column;
+  width: min(1040px, 94vw);
+  height: 88vh;
+  border-radius: 16px;
+  background: var(--surface);
+  box-shadow: var(--shadow);
+  overflow: hidden;
+}
+
+.pdfp-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 18px 6px 22px;
+}
+
+.pdfp-head h2 {
+  margin: 0;
+  font-size: 18px;
+}
+
+.pdfp-tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 10px;
+  padding: 6px 22px 14px;
+  border-bottom: 1px solid var(--border);
+}
+
+.pdfp-label {
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.pdfp-seg {
+  display: inline-flex;
+  margin-right: 8px;
+  padding: 2px;
+  border: 1px solid var(--border);
+  border-radius: var(--pill);
+}
+
+.pdfp-seg button {
+  padding: 6px 14px;
+  border: 0;
+  border-radius: var(--pill);
+  background: transparent;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.pdfp-seg button.on {
+  background: var(--primary);
+  color: #fff;
+}
+
+.pdfp-seg button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.pdfp-count {
+  margin-left: auto;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.pdfp-body {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+
+.pdfp-strip-wrap {
+  flex: none;
+  width: 360px;
+  padding: 20px 30px;
+  overflow-y: auto;
+  background: #e4e7ec;
+}
+
+.pdfp-strip {
+  position: relative;
+  width: 300px;
+  box-shadow: 0 2px 10px rgba(20, 30, 50, 0.18);
+}
+
+.pdfp-strip canvas {
+  display: block;
+}
+
+/* 페이지가 나뉘는 선: 위아래로 끌 수 있다 */
+.pdfp-break {
+  position: absolute;
+  left: -14px;
+  right: -14px;
+  height: 0;
+  border-top: 2px dashed var(--primary);
+  cursor: ns-resize;
+  touch-action: none;
+}
+
+.pdfp-break::before {
+  /* 잡기 쉽게 위아래로 넓은 투명 영역 */
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: -9px;
+  height: 16px;
+}
+
+.pdfp-break.dragging {
+  border-top-style: solid;
+}
+
+.pdfp-break-label {
+  position: absolute;
+  left: 0;
+  top: -12px;
+  padding: 2px 8px;
+  border-radius: var(--pill);
+  background: var(--primary);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.pdfp-merge {
+  position: absolute;
+  right: 0;
+  top: -11px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: var(--primary);
+  color: #fff;
+}
+
+.pdfp-merge svg {
+  width: 12px;
+  height: 12px;
+}
+
+.pdfp-merge:disabled {
+  background: #9aa4b2;
+  cursor: not-allowed;
+}
+
+.pdfp-pages {
+  flex: 1;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, 150px);
+  align-content: start;
+  gap: 20px 18px;
+  padding: 20px 24px;
+  overflow-y: auto;
+}
+
+.pdfp-card {
+  margin: 0;
+}
+
+.pdfp-card canvas {
+  display: block;
+  border: 1px solid var(--border);
+  box-shadow: 0 1px 4px rgba(20, 30, 50, 0.12);
+}
+
+.pdfp-card figcaption {
+  margin-top: 6px;
+  color: var(--muted);
+  font-size: 13px;
+  text-align: center;
+}
+
+.pdfp-foot {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 22px;
+  border-top: 1px solid var(--border);
+}
+
+.pdfp-hint {
+  flex: 1;
+  margin: 0;
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.5;
+}

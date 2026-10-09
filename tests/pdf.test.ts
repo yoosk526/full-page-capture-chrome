@@ -1,8 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import {
+  PAGE_MIN_PX,
   SMART_BREAK_WINDOW,
   blankRows,
   buildPdf,
+  dominantColor,
+  moveBreak,
+  removeBreak,
   findRowGap,
   linksForSlice,
   mapLinks,
@@ -158,5 +162,71 @@ describe('buildPdf: PDF 파일 구조', () => {
     expect(text).toContain('/URI (https://example.com/)');
     // 링크 위치: 위에서 50pt → PDF 좌표(아래에서) 792-50-20 = 722
     expect(text).toContain('/Rect [36 722 136 742]');
+  });
+});
+
+describe('moveBreak / removeBreak: 미리보기에서 나누는 곳 고치기 (PR #1 세 번째 요청)', () => {
+  // 목적: 나누는 곳을 너무 아래로 끌어 한 쪽이 용지에 안 들어가는(잘리는) 결함을 막는다
+  it('[BVA] TC-BRK-01 한 쪽 높이 = 최대+1 위치로 끎 → 최대 높이에서 멈춤', () => {
+    expect(moveBreak([1000, 2000], 0, 1001, 2500, 1000)[0]).toBe(1000);
+  });
+
+  // 목적: 나누는 곳을 앞 쪽 시작에 붙여 빈 페이지가 생기는 결함을 막는다
+  it('[BVA] TC-BRK-02 한 쪽 높이 = 최소-1 위치로 끎 → 최소 높이에서 멈춤', () => {
+    expect(moveBreak([1000, 2000], 1, 1000 + PAGE_MIN_PX - 1, 2500, 1000)[1]).toBe(1000 + PAGE_MIN_PX);
+  });
+
+  // 목적: 한 곳을 고쳤는데 사용자가 맞춰 둔 뒤쪽 나누는 곳까지 바뀌는 결함을 막는다
+  it('[EP] TC-BRK-03 뒤쪽이 그대로 들어감 → 뒤쪽 나누는 곳은 그대로', () => {
+    expect(moveBreak([1000, 1800], 0, 900, 2500, 1000)).toEqual([900, 1800]);
+  });
+
+  // 목적: 앞을 줄여 뒤쪽 한 쪽이 용지보다 길어졌는데 그대로 두어 내용이 잘리는 결함을 막는다
+  it('[EP] TC-BRK-04 뒤쪽이 용지보다 길어짐 → 거기서부터 다시 나눔', () => {
+    expect(moveBreak([1000, 2000], 0, 900, 2500, 1000)).toEqual([900, 1900]);
+  });
+
+  // 목적: 마지막 나누는 곳을 올렸을 때 마지막 쪽이 넘치는데 페이지를 늘리지 않는 결함을 막는다
+  it('[EP] TC-BRK-05 마지막 쪽이 넘침 → 페이지가 하나 늘어남', () => {
+    expect(moveBreak([1000], 0, 500, 2000, 1000)).toEqual([500, 1500]);
+  });
+
+  // 목적: 합쳐도 한 페이지에 들어가는데 합치기를 막는 결함을 막는다
+  it('[BVA] TC-BRK-06 합친 높이 = 최대 → 합쳐짐', () => {
+    expect(removeBreak([400, 1000], 0, 1500, 1000)).toEqual([1000]);
+  });
+
+  // 목적: 합치면 용지보다 길어 잘리는데 합쳐 버리는 결함을 막는다
+  it('[BVA] TC-BRK-07 합친 높이 = 최대+1 → 합치지 않음(null)', () => {
+    expect(removeBreak([400, 1001], 0, 1500, 1000)).toBeNull();
+  });
+});
+
+describe('dominantColor: 남는 여백을 채울 색 (PR #1 세 번째 요청)', () => {
+  // 목적: 어두운 바탕에 흰 글자가 조금 섞인 줄에서 글자색(흰색)으로 여백을 채워 이질감이 생기는 결함을 막는다
+  it('[EP] TC-FILL-01 어두운 점 8개 + 흰 점 2개 → 어두운 색', () => {
+    const px = [...Array(8).fill([18, 18, 18, 255]), ...Array(2).fill([255, 255, 255, 255])].flat();
+    expect(dominantColor(new Uint8ClampedArray(px))).toEqual([18, 18, 18]);
+  });
+});
+
+describe('buildPdf: 여백 채우기 (PR #1 세 번째 요청)', () => {
+  // 목적: 채우기 명령이 그림 뒤에 들어가 그림을 덮거나, 길이 값이 어긋나 PDF가 안 열리는 결함을 막는다
+  it('[EP] TC-PDFW-02 채울 사각형 1개 → 그림 앞에 색 채우기, 내용 길이(/Length)가 실제와 같음', () => {
+    const jpeg = new Uint8Array([0xff, 0xd8, 0xff, 0xd9]);
+    const text = latin1(
+      buildPdf([
+        {
+          width: 612,
+          height: 792,
+          image: { jpeg, pxW: 10, pxH: 10, x: 36, y: 36, w: 540, h: 300 },
+          links: [],
+          fills: [{ x: 36, y: 336, w: 540, h: 420, rgb: [255, 0, 0] }],
+        },
+      ]),
+    );
+    const m = text.match(/<< \/Length (\d+) >>\nstream\n([\s\S]*?)\nendstream/)!;
+    expect(m[2].length).toBe(Number(m[1]));
+    expect(m[2].startsWith('1 0 0 rg 36 36 540 420 re f q')).toBe(true);
   });
 });

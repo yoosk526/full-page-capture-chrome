@@ -7,6 +7,9 @@ import {
   mapLinks,
   pageGeometry,
   pageSlices,
+  dominantColor,
+  type OutLink,
+  type PageGeometry,
   type PdfPageSpec,
   type Slice,
 } from '../core/pdf';
@@ -33,7 +36,18 @@ async function jpegBytes(canvas: OffscreenCanvas): Promise<Uint8Array> {
   return new Uint8Array(await blob.arrayBuffer());
 }
 
-export async function renderPdf(rendered: OffscreenCanvas, shot: ShotRecord, settings: Settings): Promise<Blob> {
+export interface PdfPlan {
+  /** 머리글까지 붙인, PDF에 들어갈 그림 */
+  canvas: OffscreenCanvas;
+  g: PageGeometry;
+  slices: Slice[];
+  links: OutLink[];
+  /** 똑똑한 페이지 나누기 (끄면 없음) */
+  findBreak?: (idealEnd: number, minEnd: number) => number;
+}
+
+/** 페이지를 어떻게 나눌지 정한다. 미리보기 화면에서 용지·방향을 바꿀 때마다 다시 부른다 */
+export function planPdf(rendered: OffscreenCanvas, shot: ShotRecord, settings: Settings): PdfPlan {
   let canvas = rendered;
   let headerH = 0;
   if (settings.pdfHeader) ({ canvas, headerH } = withHeader(rendered, shot));
@@ -54,7 +68,19 @@ export async function renderPdf(rendered: OffscreenCanvas, shot: ShotRecord, set
         }
       : undefined;
   const slices: Slice[] = paper === 'full' ? [{ y: 0, h: canvas.height }] : pageSlices(canvas.height, g.sliceH, findBreak);
+  return { canvas, g, slices, links, findBreak };
+}
 
+/** 이 페이지 맨 아래 줄에서 가장 많이 쓰인 색. 남는 여백을 이 색으로 채운다 (PR #1 세 번째 요청) */
+export function sliceFillColor(canvas: OffscreenCanvas, s: Slice): [number, number, number] {
+  const ctx = canvas.getContext('2d') as Canvas2D;
+  return dominantColor(ctx.getImageData(0, s.y + s.h - 1, canvas.width, 1).data);
+}
+
+/** 정한(또는 미리보기에서 고친) 나누기대로 PDF 파일을 만든다 */
+export async function buildPdfBlob(plan: PdfPlan, slices: Slice[] = plan.slices): Promise<Blob> {
+  const { canvas, g, links } = plan;
+  const contentH = g.pageH - g.originY * 2;
   const pages: PdfPageSpec[] = [];
   for (const s of slices) {
     const part = new OffscreenCanvas(canvas.width, s.h);
@@ -62,6 +88,14 @@ export async function renderPdf(rendered: OffscreenCanvas, shot: ShotRecord, set
     pctx.fillStyle = '#ffffff';
     pctx.fillRect(0, 0, part.width, part.height);
     pctx.drawImage(canvas, 0, s.y, canvas.width, s.h, 0, 0, canvas.width, s.h);
+    const imgH = s.h * g.scale;
+    // 그림 아래 남는 부분(여백 안쪽)을 이미지 바탕색으로 채운다
+    const leftover = contentH - imgH;
+    const fills =
+      leftover > 0.5
+        ? // 그림 밑으로 1pt 겹쳐 칠해(그림이 위에 덮음) 경계에 가는 흰 줄이 보이지 않게 한다
+          [{ x: g.originX, y: g.originY + imgH - 1, w: canvas.width * g.scale, h: leftover + 1, rgb: sliceFillColor(canvas, s) }]
+        : [];
     pages.push({
       width: g.pageW,
       height: g.pageH,
@@ -72,10 +106,15 @@ export async function renderPdf(rendered: OffscreenCanvas, shot: ShotRecord, set
         x: g.originX,
         y: g.originY,
         w: canvas.width * g.scale,
-        h: s.h * g.scale,
+        h: imgH,
       },
       links: linksForSlice(links, s, g),
+      fills,
     });
   }
   return new Blob([buildPdf(pages) as BlobPart], { type: 'application/pdf' });
+}
+
+export async function renderPdf(rendered: OffscreenCanvas, shot: ShotRecord, settings: Settings): Promise<Blob> {
+  return buildPdfBlob(planPdf(rendered, shot, settings));
 }
