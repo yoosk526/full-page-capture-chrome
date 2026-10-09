@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "한장캡처 - 전체 페이지 스크롤 캡처와 편집",
   "short_name": "한장캡처",
-  "version": "1.4.1",
+  "version": "1.4.2",
   "description": "웹 페이지 전체를 스크롤하며 한 장으로 찍고, 표시·가리기·자르기를 한 뒤 PNG, JPG, PDF로 저장합니다. 계정과 인터넷 전송 없이 이 기기에만 보관합니다.",
   "icons": {
     "16": "icons/icon16.png",
