@@ -2,7 +2,7 @@
 // 화면을 어둡게 덮고, 마우스로 끈 사각형만 밝게 보여 준다. 손을 떼면 덮개를 지우고 서비스 워커에 영역을 알린다.
 import { autoScrollStep } from '../core/area';
 import { t } from '../shared/i18n';
-import type { AreaSelected } from '../shared/messages';
+import { SCROLLER_ATTR, type AreaSelected } from '../shared/messages';
 
 declare global {
   interface Window {
@@ -44,7 +44,18 @@ function start(): void {
   hint.textContent = t.area.hint;
   document.documentElement.appendChild(host);
 
-  // origin.y와 rect.y는 문서 기준(스크롤 포함), x는 화면 기준
+  // 스크롤할 대상: 창이 스크롤되면 창, 아니면 누른 곳의 스크롤 상자(웹 메일·대시보드 등)
+  let inner: HTMLElement | null = null;
+  const scrollPos = () => (inner ? inner.scrollTop : window.scrollY);
+  /** 자동 스크롤이 반응하는 위·아래 끝 (화면 기준) */
+  const edges = () => {
+    if (!inner) return { top: 0, height: window.innerHeight };
+    const r = inner.getBoundingClientRect();
+    const top = Math.max(0, r.top + inner.clientTop);
+    return { top, height: Math.min(window.innerHeight, top + inner.clientHeight) - top };
+  };
+
+  // origin.y와 rect.y는 스크롤을 더한 위치, x는 화면 기준
   let origin: { x: number; y: number } | null = null;
   let pointer = { x: 0, y: 0 };
   let rect = { x: 0, y: 0, w: 0, h: 0 };
@@ -52,7 +63,7 @@ function start(): void {
 
   const draw = () => {
     if (!origin) return;
-    const py = pointer.y + window.scrollY;
+    const py = pointer.y + scrollPos();
     const x = Math.max(0, Math.min(origin.x, pointer.x));
     const right = Math.min(window.innerWidth, Math.max(origin.x, pointer.x));
     const y = Math.max(0, Math.min(origin.y, py));
@@ -60,7 +71,7 @@ function start(): void {
     Object.assign(box.style, {
       display: 'block',
       left: `${x}px`,
-      top: `${y - window.scrollY}px`,
+      top: `${y - scrollPos()}px`,
       width: `${rect.w}px`,
       height: `${rect.h}px`,
     });
@@ -70,11 +81,14 @@ function start(): void {
   const tick = () => {
     raf = 0;
     if (!origin) return;
-    const step = autoScrollStep(pointer.y, window.innerHeight);
+    const e = edges();
+    const step = autoScrollStep(pointer.y - e.top, e.height);
     if (step !== 0) {
-      const before = window.scrollY;
-      window.scrollBy(0, step);
-      if (window.scrollY !== before) draw();
+      const before = scrollPos();
+      // 페이지가 부드러운 스크롤(scroll-behavior: smooth)을 써도 바로 움직이게 한다
+      if (inner) inner.scrollBy({ top: step, behavior: 'instant' });
+      else window.scrollBy({ top: step, behavior: 'instant' });
+      if (scrollPos() !== before) draw();
     }
     raf = requestAnimationFrame(tick);
   };
@@ -97,7 +111,8 @@ function start(): void {
   layer.addEventListener('pointerdown', (e) => {
     e.preventDefault();
     layer.setPointerCapture(e.pointerId);
-    origin = { x: e.clientX, y: e.clientY + window.scrollY };
+    inner = windowScrolls() ? null : scrollerAt(e.clientX, e.clientY, host);
+    origin = { x: e.clientX, y: e.clientY + scrollPos() };
     pointer = { x: e.clientX, y: e.clientY };
     layer.classList.add('dragging');
     hint.style.display = 'none';
@@ -113,10 +128,33 @@ function start(): void {
     cleanup();
     // 덮개가 찍히지 않도록 화면이 다시 그려질 때까지 기다린다
     await nextFrame();
+    // 촬영 쪽(content.js)이 같은 스크롤 상자를 쓰도록 표시해 둔다
+    document.querySelectorAll(`[${SCROLLER_ATTR}]`).forEach((el) => el.removeAttribute(SCROLLER_ATTR));
+    inner?.setAttribute(SCROLLER_ATTR, '');
     const msg: AreaSelected = { kind: 'areaSelected', rect, title: document.title, url: location.href };
     const res = (await chrome.runtime.sendMessage(msg)) as { ok: boolean } | undefined;
     if (res && !res.ok) showFailed();
   });
+}
+
+/** 창(문서 전체)이 세로로 스크롤되는지 */
+function windowScrolls(): boolean {
+  const el = document.scrollingElement ?? document.documentElement;
+  if (el.scrollHeight <= window.innerHeight + 1) return false;
+  // html의 overflow가 visible이면 body의 overflow가 창에 적용된다
+  const html = getComputedStyle(document.documentElement).overflowY;
+  const viewport = html === 'visible' && document.body ? getComputedStyle(document.body).overflowY : html;
+  return viewport !== 'hidden' && viewport !== 'clip';
+}
+
+/** 누른 곳에서 가장 가까운 세로 스크롤 상자 */
+function scrollerAt(x: number, y: number, host: HTMLElement): HTMLElement | null {
+  const hit = document.elementsFromPoint(x, y).find((el) => el !== host && !host.contains(el));
+  for (let el = hit as HTMLElement | null; el && el !== document.documentElement; el = el.parentElement) {
+    const oy = getComputedStyle(el).overflowY;
+    if ((oy === 'auto' || oy === 'scroll' || oy === 'overlay') && el.scrollHeight > el.clientHeight + 1) return el;
+  }
+  return null;
 }
 
 function showFailed(): void {

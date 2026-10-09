@@ -1,5 +1,6 @@
 // "페이지 일부" 촬영 (PR #1 요청): 영역 고르기 화면을 넣고, 고른 영역만 찍어 보관한다.
 // 고른 영역이 화면보다 길면(끄는 동안 자동 스크롤, Q43 답변 ②) 스크롤하며 여러 번 찍어 이어 붙인다.
+// 페이지 안 스크롤 상자에서 골랐으면 그 상자를 스크롤한다. TODO(추정): 이때 상자 바깥 부분은 처음 화면에 보인 만큼만 찍힌다.
 import { AREA_MIN_CSS, areaChunk, areaScrollTarget } from '../core/area';
 import { MAX_PART_AREA, MAX_PART_HEIGHT, toDeviceSpan } from '../core/capturePlan';
 import { normalizeRect } from '../core/crop';
@@ -47,9 +48,14 @@ export async function captureArea(tab: chrome.tabs.Tab, msg: AreaSelected): Prom
     let covered = top;
     let current = m.scrollY;
     let lastCaptureAt: number | null = null;
+    // 스크롤하면 내용이 보이는 구간 (창 스크롤이면 화면 전체, 스크롤 상자면 그 상자의 구간)
+    const regionTop = m.regionTop;
     for (let i = 0; covered < bottom; i++) {
-      const maxScroll = Math.max(0, m.contentHeight - vh);
-      const want = areaScrollTarget(covered, bottom, current, vh, maxScroll);
+      const regionBottom = Math.min(vh, m.regionTop + m.regionHeight);
+      const maxScroll = Math.max(0, m.contentHeight - (regionBottom - regionTop));
+      // 처음에 영역 전체가 화면에 보이면 스크롤하지 않고 화면 그대로 찍는다
+      const fitsNow = i === 0 && covered - current >= 0 && bottom - current <= vh;
+      const want = fitsNow ? current : areaScrollTarget(covered, bottom, current, regionTop, regionBottom, maxScroll);
       // 고를 때 보던 화면 그대로 찍는 첫 조각만 고정 머리글 등을 남기고, 스크롤해서 찍는 조각에서는 숨긴다 (CAP-06)
       const index = i === 0 && want === m.scrollY ? 0 : 1;
       const actual = await send<number>(tabId, { kind: 'scrollTo', y: want, index });
@@ -70,7 +76,7 @@ export async function captureArea(tab: chrome.tabs.Tab, msg: AreaSelected): Prom
           bottom = Math.min(bottom, top + Math.floor(maxH));
           canvas = new OffscreenCanvas(wPx, toDeviceSpan(0, bottom - top, scale).height);
         }
-        const chunk = areaChunk(covered, bottom, actual, vh);
+        const chunk = fitsNow ? areaChunk(covered, bottom, actual, 0, vh) : areaChunk(covered, bottom, actual, regionTop, Math.min(vh, m.regionTop + m.regionHeight));
         if (!chunk) break; // 스크롤이 더 되지 않는다
         const src = toDeviceSpan(chunk.srcY, chunk.height, scale);
         const dest = toDeviceSpan(covered - top, chunk.height, scale);

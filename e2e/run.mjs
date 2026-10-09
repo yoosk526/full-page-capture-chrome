@@ -571,6 +571,36 @@ async function popupFlow(context, worker, origin) {
     await result.close();
   }
 
+  // 부드러운 스크롤 페이지, 페이지 안 스크롤 상자에서도 자동 스크롤되어 긴 영역이 찍힌다 (PR #1 세 번째 요청: 실제 사이트에서 안 됨)
+  for (const [path, edgeY, label] of [
+    ['/smooth.html', (vh) => vh - 5, '부드러운 스크롤 페이지'],
+    ['/inner.html', (vh) => vh - 45, '페이지 안 스크롤 상자'],
+  ]) {
+    await page.goto(origin + path);
+    await page.bringToFront();
+    await worker.evaluate(() => chrome.action.openPopup());
+    pop = await attachPopup(context, page);
+    await new Promise((r) => setTimeout(r, 300));
+    await pop.eval(`document.getElementById('choose-area').click()`);
+    await page.waitForFunction(() => !!document.getElementById('__hanjang-area'), null, { timeout: 5000 });
+    const h = await page.evaluate(() => innerHeight);
+    resultPromise = context.waitForEvent('page', { predicate: (p) => p.url().includes('result.html?id='), timeout: 60000 });
+    await page.mouse.move(100, 150);
+    await page.mouse.down();
+    await page.mouse.move(400, edgeY(h), { steps: 6 });
+    await new Promise((r) => setTimeout(r, 1200));
+    const moved = await page.evaluate(() => Math.max(scrollY, document.querySelector('.scroller')?.scrollTop ?? 0));
+    await page.mouse.up();
+    result = await resultPromise.catch(() => null);
+    const got = result ? await shotSize(result) : null;
+    check(`영역 고르기(${label}): 끝에서 자동 스크롤 → 화면보다 긴 영역이 찍힘`, moved > 300 && !!got && got.w === 300 * dpr && got.h >= (edgeY(h) - 150 + moved) * dpr - 2, JSON.stringify({ moved, got }));
+    if (result) {
+      await result.screenshot({ path: join(OUT, `result-area-${path.slice(1, -5)}.png`) });
+      await result.close();
+    }
+  }
+  await page.goto(origin + '/long.html');
+
   // Esc로 영역 고르기 취소
   await page.bringToFront();
   await worker.evaluate(() => chrome.action.openPopup());

@@ -48,21 +48,29 @@ export function autoScrollStep(
 }
 
 /**
- * 고른 영역(문서 기준 CSS px)에서 아직 안 찍은 부분 [covered, bottom)을 찍으려면 어디로 스크롤할지.
- * 남은 부분이 지금 화면에 다 보이면 움직이지 않는다.
+ * 고른 영역에서 아직 안 찍은 부분 [covered, bottom)을 찍으려면 어디로 스크롤할지.
+ * 위치는 스크롤을 더한 값이고, 화면에서 내용이 보이는 구간은 [viewTop, viewBottom)이다
+ * (창 스크롤이면 화면 전체, 스크롤 상자면 그 상자가 차지한 구간).
+ * 남은 부분이 지금 다 보이면 움직이지 않는다.
  */
-export function areaScrollTarget(covered: number, bottom: number, current: number, viewportH: number, maxScroll: number): number {
-  if (covered >= current && bottom <= current + viewportH) return current;
-  return Math.max(0, Math.min(covered, maxScroll));
+export function areaScrollTarget(covered: number, bottom: number, current: number, viewTop: number, viewBottom: number, maxScroll: number): number {
+  if (covered - current >= viewTop && bottom - current <= viewBottom) return current;
+  return Math.max(0, Math.min(covered - viewTop, maxScroll));
 }
 
 /**
  * 실제 스크롤 위치(actual)에서 찍은 화면 중 영역에 붙일 세로 구간(화면 기준 CSS px).
  * @returns 붙일 것이 없으면(스크롤이 생각대로 안 됨) null
  */
-export function areaChunk(covered: number, bottom: number, actual: number, viewportH: number): { srcY: number; height: number } | null {
+export function areaChunk(
+  covered: number,
+  bottom: number,
+  actual: number,
+  viewTop: number,
+  viewBottom: number,
+): { srcY: number; height: number } | null {
   const srcY = covered - actual;
-  const end = Math.min(viewportH, bottom - actual);
-  if (srcY < 0 || end - srcY <= 0) return null;
+  const end = Math.min(viewBottom, bottom - actual);
+  if (srcY < viewTop || end - srcY <= 0) return null;
   return { srcY, height: end - srcY };
 }

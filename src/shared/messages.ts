@@ -56,9 +56,12 @@ export type WorkerToPopup =
   | { kind: 'done'; autoDownloaded: boolean };
 
 /** 영역 고르기 화면(area.js) → 서비스 워커 */
+/** 페이지 일부 촬영에서 창 대신 스크롤할 상자에 붙이는 표시 */
+export const SCROLLER_ATTR = 'data-hanjang-area-scroller';
+
 export interface AreaSelected {
   kind: 'areaSelected';
-  /** CSS px. x는 화면 기준, y는 문서 기준(끄는 동안 자동 스크롤하므로 화면보다 길 수 있다) */
+  /** CSS px. x는 화면 기준, y는 스크롤을 더한 위치(창 또는 표시한 스크롤 상자 기준. 화면보다 길 수 있다) */
   rect: { x: number; y: number; w: number; h: number };
   title: string;
   url: string;

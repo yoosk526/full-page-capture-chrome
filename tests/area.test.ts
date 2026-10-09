@@ -76,26 +76,36 @@ describe('autoScrollStep: 영역을 끄는 중 화면 끝 자동 스크롤 (Q43 
 describe('areaScrollTarget / areaChunk: 화면보다 긴 영역 나눠 찍기 (Q43 답변 ②)', () => {
   // 목적: 영역이 지금 화면 안에 다 보이는데도 페이지를 움직여 고정 머리글 등이 달라지는 결함을 막는다
   it('[EP] TC-ACHK-01 남은 영역이 화면 안 → 지금 위치 그대로', () => {
-    expect(areaScrollTarget(1100, 1500, 1000, VH, 5000)).toBe(1000);
+    expect(areaScrollTarget(1100, 1500, 1000, 0, VH, 5000)).toBe(1000);
   });
 
   // 목적: 화면 밖 영역을 찍으려고 남은 부분의 위쪽으로 스크롤하지 않는 결함을 막는다
   it('[EP] TC-ACHK-02 남은 영역이 화면 아래로 넘침 → 남은 부분 맨 위로 스크롤', () => {
-    expect(areaScrollTarget(1500, 3000, 1000, VH, 5000)).toBe(1500);
+    expect(areaScrollTarget(1500, 3000, 1000, 0, VH, 5000)).toBe(1500);
   });
 
   // 목적: 문서 끝을 넘어 스크롤하라고 해 위치 계산이 어긋나는 결함을 막는다
   it('[BVA] TC-ACHK-03 남은 부분 위치 > 최대 스크롤 → 최대 스크롤', () => {
-    expect(areaScrollTarget(5000, 5600, 1000, VH, 4900)).toBe(4900);
+    expect(areaScrollTarget(5000, 5600, 1000, 0, VH, 4900)).toBe(4900);
   });
 
   // 목적: 문서 끝 근처에서 화면 아래쪽까지만 잘라야 하는데 영역 끝을 넘겨 붙이는 결함을 막는다
   it('[EP] TC-ACHK-04 스크롤이 덜 됨(실제 4900) → 화면 안의 남은 부분만', () => {
-    expect(areaChunk(5000, 5300, 4900, VH)).toEqual({ srcY: 100, height: 300 });
+    expect(areaChunk(5000, 5300, 4900, 0, VH)).toEqual({ srcY: 100, height: 300 });
   });
 
   // 목적: 남은 부분이 화면 위에 있어 찍을 수 없는데 엉뚱한 곳을 붙이는 결함을 막는다
   it('[EP] TC-ACHK-05 남은 부분이 지금 화면보다 위 → 붙이지 않음(null)', () => {
-    expect(areaChunk(900, 1500, 1000, VH)).toBeNull();
+    expect(areaChunk(900, 1500, 1000, 0, VH)).toBeNull();
+  });
+
+  // 목적: 페이지 안 스크롤 상자(위에 머리글 80px)에서 남은 부분을 머리글 밑에 숨겨 찍는 결함을 막는다
+  it('[EP] TC-ACHK-06 스크롤 상자(보이는 구간 80~660) → 남은 부분이 상자 맨 위에 오게 스크롤', () => {
+    expect(areaScrollTarget(1500, 3000, 1000, 80, 660, 5000)).toBe(1420);
+  });
+
+  // 목적: 스크롤 상자 아래(바닥 막대)까지 찍혀 상자 내용 사이에 끼는 결함을 막는다
+  it('[EP] TC-ACHK-07 스크롤 상자 → 상자 아래 끝까지만 붙임', () => {
+    expect(areaChunk(1500, 3000, 1420, 80, 660)).toEqual({ srcY: 80, height: 580 });
   });
 });

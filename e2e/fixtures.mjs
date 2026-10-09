@@ -11,6 +11,9 @@ export const PAGES = {
   <header>고정 머리글 <a href="https://example.com/link">링크</a></header>
   ${Array.from({ length: 7 }, (_, i) => `<div class="band" style="background:hsl(${i * 50},60%,45%)">구역 ${i + 1}</div>`).join('')}
   </body></html>`,
+  // 부드러운 스크롤을 쓰는 페이지 (요즘 사이트에 흔함): 영역 고르기 자동 스크롤 확인용
+  '/smooth.html': `<!doctype html><html style="scroll-behavior:smooth"><head><title>부드러운 스크롤</title></head><body style="margin:0">
+  ${Array.from({ length: 8 }, (_, i) => `<div style="height:500px;background:hsl(${i * 45},60%,50%)"></div>`).join('')}</body></html>`,
   '/dark.html': `<!doctype html><html><head><title>어두운 페이지</title><style>
     html{background:#121212;color:#eee}body{margin:0;font:16px sans-serif}
     p{height:400px;margin:0;padding:20px}

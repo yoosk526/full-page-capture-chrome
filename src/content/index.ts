@@ -1,7 +1,7 @@
 // 촬영하는 페이지 안에서 실행된다 (chrome.scripting.executeScript로 그때그때 넣음, activeTab 권한)
 // 스크롤, 고정 요소 숨기기, 크기 측정을 맡는다. 실제 촬영(captureVisibleTab)은 서비스 워커가 한다.
 import { pickBackgroundColor } from '../core/capturePlan';
-import type { ContentRequest, PageMetrics } from '../shared/messages';
+import { SCROLLER_ATTR, type ContentRequest, type PageMetrics } from '../shared/messages';
 
 declare global {
   interface Window {
@@ -161,7 +161,8 @@ async function prepare(area = false): Promise<PageMetrics> {
 
   const vh = window.innerHeight;
   const docH = documentHeight();
-  if (!area && (docH <= vh + 1 || !windowCanScroll())) target = findInnerScroller(vh);
+  if (area) target = document.querySelector<HTMLElement>(`[${SCROLLER_ATTR}]`);
+  else if (docH <= vh + 1 || !windowCanScroll()) target = findInnerScroller(vh);
   applyCaptureStyles();
   await nextFrame();
 
@@ -188,7 +189,7 @@ async function prepare(area = false): Promise<PageMetrics> {
     regionTop,
     regionHeight,
     contentHeight,
-    scrollY: window.scrollY,
+    scrollY: currentScroll(),
     documentScroll: !target,
     background: pickBackgroundColor([
       getComputedStyle(document.documentElement).backgroundColor,
@@ -232,6 +233,7 @@ async function waitImages(timeoutMs: number): Promise<void> {
 
 function restore(): void {
   restoreStyles();
+  document.querySelectorAll(`[${SCROLLER_ATTR}]`).forEach((el) => el.removeAttribute(SCROLLER_ATTR));
   if (target) target.scrollTop = originalScroll.inner;
   window.scrollTo(originalScroll.x, originalScroll.y);
   target = null;
