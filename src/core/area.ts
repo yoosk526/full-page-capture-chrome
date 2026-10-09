@@ -55,8 +55,12 @@ export function autoScrollStep(
  */
 export function areaScrollTarget(covered: number, bottom: number, current: number, viewTop: number, viewBottom: number, maxScroll: number): number {
   if (covered - current >= viewTop && bottom - current <= viewBottom) return current;
-  return Math.max(0, Math.min(covered - viewTop, maxScroll));
+  // 소수점 위치로 스크롤하면 브라우저가 반올림해 남은 부분의 시작이 화면 위로 밀려날 수 있어 내림한다 (Issue #3)
+  return Math.max(0, Math.floor(Math.min(covered - viewTop, maxScroll)));
 }
+
+/** 스크롤 위치가 반올림 등으로 이만큼(CSS px) 어긋나는 것은 같은 위치로 본다 (Issue #3). TODO(추정) */
+export const AREA_SNAP_TOLERANCE = 1;
 
 /**
  * 실제 스크롤 위치(actual)에서 찍은 화면 중 영역에 붙일 세로 구간(화면 기준 CSS px).
@@ -68,9 +72,13 @@ export function areaChunk(
   actual: number,
   viewTop: number,
   viewBottom: number,
+  tolerance: number = AREA_SNAP_TOLERANCE,
 ): { srcY: number; height: number } | null {
-  const srcY = covered - actual;
+  const want = covered - actual;
+  // 반올림으로 생긴 아주 작은 어긋남은 보이는 구간 맨 위부터 붙인다 (그 차이만큼은 잃는다)
+  if (want < viewTop - tolerance) return null;
+  const srcY = Math.max(want, viewTop);
   const end = Math.min(viewBottom, bottom - actual);
-  if (srcY < viewTop || end - srcY <= 0) return null;
+  if (end - srcY <= 0) return null;
   return { srcY, height: end - srcY };
 }

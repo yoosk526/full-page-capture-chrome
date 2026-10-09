@@ -744,6 +744,35 @@ async function popupFlow(context, worker, origin) {
   }
   await page.goto(origin + '/long.html');
 
+  // 마우스 위치가 소수점(맥의 레티나 화면·트랙패드 등)일 때: 스크롤 위치가 반올림되어도 찍혀야 한다 (Issue #3 원인)
+  for (const [label, zoom] of [['소수점 위치', 1], ['소수점 위치 + 확대 110%', 1.1]]) {
+    await page.goto(origin + '/long.html');
+    await page.bringToFront();
+    if (zoom !== 1) await worker.evaluate(async (z) => { const [t] = await chrome.tabs.query({ active: true, lastFocusedWindow: true }); await chrome.tabs.setZoom(t.id, z); }, zoom);
+    await page.waitForTimeout(300);
+    await worker.evaluate(() => chrome.action.openPopup());
+    pop = await attachPopup(context, page);
+    await new Promise((r) => setTimeout(r, 300));
+    await pop.eval(`document.getElementById('choose-area').click()`);
+    await page.waitForFunction(() => !!document.getElementById('__hanjang-area'), null, { timeout: 5000 });
+    const h = await page.evaluate(() => innerHeight);
+    resultPromise = context.waitForEvent('page', { predicate: (p) => p.url().includes('result.html?id='), timeout: 40000 });
+    await page.mouse.move(100.3, 200.7);
+    await page.mouse.down();
+    await page.mouse.move(400.6, h - 5.4, { steps: 6 });
+    await new Promise((r) => setTimeout(r, 1200));
+    await page.mouse.up();
+    // 결과 탭이 열리거나 실패 안내가 뜰 때까지 기다린다
+    const failWait = page.waitForFunction(() => document.getElementById('__hanjang-area-failed')?.innerText, null, { timeout: 40000 }).then((h) => h.jsonValue(), () => '');
+    const first = await Promise.race([resultPromise.then((r) => ({ r })), failWait.then((f) => ({ f }))]);
+    result = first.r ?? null;
+    const failText = first.f ?? '';
+    check(`영역 고르기(${label}): 자동 스크롤 뒤 손을 떼면 찍힘`, !!result && !failText, failText.replace(/\n/g, ' / ') || 'ok');
+    if (result) await result.close();
+    if (zoom !== 1) await worker.evaluate(async () => { const [t] = await chrome.tabs.query({ active: true, lastFocusedWindow: true }); await chrome.tabs.setZoom(t.id, 1); });
+  }
+  await page.goto(origin + '/long.html');
+
   // 찍지 못하면 원인도 함께 보인다 (Issue #3: 사용자 컴퓨터에서만 실패해 원인을 알아야 함). 2px만 끌어 일부러 실패시킨다
   {
     await page.bringToFront();
