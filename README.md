@@ -23,7 +23,7 @@ No account, no tracking, no network requests. Screenshots are stored **only on y
 
 The extension is not on the Chrome Web Store, so you install it manually:
 
-1. Download [`release/hanjang-capture-v1.4.4.zip`](release/hanjang-capture-v1.4.4.zip) and unzip it.
+1. Download [`release/hanjang-capture-v1.4.5.zip`](release/hanjang-capture-v1.4.5.zip) and unzip it.
 2. Move the unzipped folder somewhere permanent, such as your Documents folder. Chrome loads the extension from this folder, so don't delete it.
 3. Open `chrome://extensions` in Chrome.
 4. Turn on **Developer mode** (top right).
