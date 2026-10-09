@@ -48,7 +48,7 @@ const TOOL_KEYS: Record<string, ToolId> = {
   KeyB: 'blur',
   KeyN: 'badge',
   KeyP: 'pen',
-  KeyM: 'brush',
+  // 붓(M)은 PR #1 요청으로 뺐다
 };
 
 const ARROWS: Record<string, [number, number]> = {

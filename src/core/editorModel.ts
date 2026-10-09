@@ -5,7 +5,7 @@ import { normalizeRect } from './crop';
 // ---- 색 목록 (모든 도구 공통 7가지, 채우기는 "없음"을 더한 8가지) ----
 export const PALETTE = [
   { id: 'black', value: '#1e293b' }, // 짙은 남색에 가까운 검정
-  { id: 'red', value: '#e5484d' },
+  { id: 'red', value: '#ff0000' }, // PR #1 요청: 기본 빨강은 #FF0000
   { id: 'yellow', value: '#f5c518' },
   { id: 'green', value: '#30a46c' },
   { id: 'slate', value: '#64748b' },
@@ -139,6 +139,31 @@ export function cloneInto(doc: EditorDoc, source: EditorObject, offset = DUPLICA
     return { ...addObject(doc, { ...moved, id, number }), badgeCounter: number };
   }
   return addObject(doc, { ...moved, id });
+}
+
+// ---- 여러 개를 함께 다루기 (PR #1 요청: Shift로 여러 개 선택) ----
+
+export function removeObjects(doc: EditorDoc, ids: Iterable<string>): EditorDoc {
+  const set = new Set(ids);
+  return { ...doc, objects: doc.objects.filter((o) => !set.has(o.id)) };
+}
+
+export function moveObjects(doc: EditorDoc, ids: Iterable<string>, dx: number, dy: number): EditorDoc {
+  const set = new Set(ids);
+  return { ...doc, objects: doc.objects.map((o) => (set.has(o.id) ? translateObject(o, dx, dy) : o)) };
+}
+
+/** 여러 개를 한꺼번에 복제한다. 원래 겹침 순서대로 맨 위에 놓인다. 새 id 목록도 돌려준다 */
+export function cloneManyInto(doc: EditorDoc, sources: EditorObject[], offset = DUPLICATE_OFFSET): { doc: EditorDoc; ids: string[] } {
+  const order = new Map(doc.objects.map((o, i) => [o.id, i]));
+  const sorted = [...sources].sort((a, b) => (order.get(a.id) ?? 0) - (order.get(b.id) ?? 0));
+  let next = doc;
+  const ids: string[] = [];
+  for (const src of sorted) {
+    next = cloneInto(next, src, offset);
+    ids.push(next.objects[next.objects.length - 1].id);
+  }
+  return { doc: next, ids };
 }
 
 // ---- 위치와 크기 ----

@@ -52,4 +52,9 @@ describe('resolveShortcut: 편집기 단축키 (EDT-15, EXP-11)', () => {
     expect(resolveShortcut(key({ key: 'ArrowLeft' }), false)).toEqual({ type: 'move', dx: -MOVE_STEP, dy: 0 });
     expect(resolveShortcut(key({ key: 'ArrowDown', shiftKey: true }), false)).toEqual({ type: 'move', dx: 0, dy: MOVE_STEP_FAST });
   });
+
+  // 목적: 없앤 붓 도구(M)가 단축키로 다시 켜지는 결함을 막는다 (PR #1 요청)
+  it('[EP] TC-KEY-10 M 키 → 처리하지 않음(null)', () => {
+    expect(resolveShortcut(key({ key: 'm', code: 'KeyM' }), false)).toBeNull();
+  });
 });

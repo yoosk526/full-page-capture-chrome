@@ -93,6 +93,7 @@ async function editorFlow(context, extId, id) {
 
   check('편집기: 처음 비율 75%', (await ed.locator('#zoom-label').textContent()) === '75%');
   check('편집기: 처음엔 실행 취소 비활성', await ed.locator('#undo-btn').isDisabled());
+  check('편집기: 도구 막대에 붓이 없음(11개 도구)', (await ed.locator('#toolbar [data-tool]').count()) === 11 && (await ed.locator('#toolbar [data-tool="brush"]').count()) === 0);
   await dragBy('r', at(0.2, 0.2), at(0.45, 0.35));
   await dragBy('a', at(0.5, 0.5), at(0.7, 0.3));
   await dragBy('o', at(0.2, 0.5), at(0.35, 0.65));
@@ -100,7 +101,7 @@ async function editorFlow(context, extId, id) {
   await dragBy('b', at(0.55, 0.6), at(0.75, 0.75));
   await dragBy('h', at(0.1, 0.1), at(0.3, 0.12));
   await dragBy('p', at(0.6, 0.15), at(0.8, 0.25));
-  await dragBy('m', at(0.6, 0.25), at(0.8, 0.35));
+  await dragBy('p', at(0.6, 0.25), at(0.8, 0.35)); // 붓은 없앴으므로 펜으로 한 번 더
   await ed.keyboard.press('n');
   await ed.mouse.click(...at(0.85, 0.5));
   await ed.mouse.click(...at(0.85, 0.65));
@@ -120,6 +121,38 @@ async function editorFlow(context, extId, id) {
   await ed.keyboard.press(process.platform === 'darwin' ? 'Meta+y' : 'Control+y');
   check('편집기: 다시 실행 → 11개', (await status()).includes('개체 11개'), await status());
 
+  // Shift + 사각형 → 정사각형, 그 뒤 Esc → 선택 도구
+  {
+    await ed.keyboard.press('r');
+    const [sx0, sy0] = at(0.3, 0.55);
+    await ed.mouse.move(sx0, sy0);
+    await ed.mouse.down();
+    await ed.keyboard.down('Shift');
+    await ed.mouse.move(sx0 + 150, sy0 + 60, { steps: 4 });
+    await ed.mouse.up();
+    await ed.keyboard.up('Shift');
+    await ed.keyboard.press('Escape');
+    check('편집기: 그리기 도구에서 Esc → 선택 도구', (await ed.locator('#toolbar [data-tool="select"].active').count()) === 1);
+    await ed.keyboard.press(process.platform === 'darwin' ? 'Meta+z' : 'Control+z');
+  }
+
+  // Shift로 목록에서 두 개 고르기 → 함께 지우기 → 실행 취소
+  {
+    const n0 = await ed.locator('#objects-list li').count();
+    await ed.locator('#objects-list li').nth(0).click();
+    await ed.locator('#objects-list li').nth(1).click({ modifiers: ['Shift'] });
+    const selCount = await ed.locator('#objects-list li.selected').count();
+    const panelTitle = await ed.locator('#style-panel h3').textContent();
+    await ed.keyboard.press('Delete');
+    const n1 = await ed.locator('#objects-list li').count();
+    await ed.keyboard.press(process.platform === 'darwin' ? 'Meta+z' : 'Control+z');
+    const n2 = await ed.locator('#objects-list li').count();
+    check('편집기: Shift로 두 개 선택 → 함께 지우기 → 실행 취소로 복구', selCount === 2 && panelTitle === '개체 2개 선택됨' && n1 === n0 - 2 && n2 === n0, `${selCount}, ${panelTitle}, ${n0}→${n1}→${n2}`);
+    const head = await ed.locator('.objects-title').innerText();
+    check('편집기: 개체 목록 머리글은 "개체"(왼쪽)와 개수(오른쪽)', /^개체\s+\d+$/.test(head.trim()), head);
+    await ed.keyboard.press('Escape');
+  }
+
   // 선택 → 복제 → 삭제
   await ed.keyboard.press('v');
   await ed.locator('#objects-list li').nth(3).click();
@@ -136,6 +169,9 @@ async function editorFlow(context, extId, id) {
   const dot = await ed.locator('#objects-list li', { hasText: '사각형' }).locator('.icon-btn').count();
   const color = await ed.evaluate(() => getComputedStyle(document.querySelector('#style-panel .swatch.selected')).backgroundColor);
   check('편집기: 색 바꾸기(초록) 반영', color === 'rgb(48, 164, 108)' && dot === 3, color);
+  await ed.keyboard.press('Escape');
+  await ed.locator('#objects-list li', { hasText: '화살표' }).click();
+  await ed.screenshot({ path: join(OUT, 'editor-arrow.png'), clip: { x: 1000, y: 40, width: 280, height: 320 } });
   await ed.keyboard.press('Escape');
 
   // 도장 켜기(U) → 결과 크기가 커진다

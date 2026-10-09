@@ -33,7 +33,6 @@ export function shortcutGroups(isMac: boolean): ShortcutGroup[] {
         { label: i.select, keys: [['V']] },
         { label: i.crop, keys: [['C']] },
         { label: i.pen, keys: [['P']] },
-        { label: i.brush, keys: [['M']] },
         { label: i.cropApply, keys: [['Enter']] },
         { label: i.cropCancel, keys: [['Esc']] },
       ],

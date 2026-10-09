@@ -11,15 +11,16 @@ import {
   addObject,
   boundsOf,
   clampValue,
-  cloneInto,
   defaultBadgeSize,
   handlePosition,
   handlesFor,
   hitTest,
   moveLayer,
-  moveObject,
+  moveObjects,
   newObjectId,
   removeObject,
+  removeObjects,
+  cloneManyInto,
   resizeObject,
   updateObject,
   type Handle,
@@ -27,6 +28,7 @@ import {
   type ToolStyle,
 } from '../../core/editorModel';
 import { History } from '../../core/history';
+import { constrainSquare, snapStraight } from '../../core/constrain';
 import type { FileFormat } from '../../core/settings';
 import { resolveShortcut, type EditorAction, type ToolId } from '../../core/shortcuts';
 import { EDITOR_INITIAL_ZOOM, clampZoom, fitZoom, formatZoom, zoomIn, zoomOut } from '../../core/zoom';
@@ -47,7 +49,8 @@ applyIcons();
 const MAC = isMac();
 const MARGIN = 40;
 const HANDLE = 8; // 핸들 크기(화면 px)
-const TOOL_ORDER: (ToolId | '|')[] = ['select', 'crop', '|', 'rect', 'ellipse', 'arrow', 'line', 'text', 'highlighter', 'blur', 'badge', '|', 'pen', 'brush'];
+// 붓은 펜과 같아서 뺐다 (PR #1 요청). 예전에 만든 붓 개체는 그대로 보이고 고칠 수 있다
+const TOOL_ORDER: (ToolId | '|')[] = ['select', 'crop', '|', 'rect', 'ellipse', 'arrow', 'line', 'text', 'highlighter', 'blur', 'badge', '|', 'pen'];
 const TOOL_KEY: Record<ToolId, string> = {
   select: 'V', crop: 'C', rect: 'R', ellipse: 'O', arrow: 'A', line: 'L', text: 'T', highlighter: 'H', blur: 'B', badge: 'N', pen: 'P', brush: 'M',
 };
@@ -60,20 +63,23 @@ let history: History<EditorDoc>;
 /** 끌기 중의 임시 문서. 손을 떼면 이력에 넣는다 */
 let draft: EditorDoc | null = null;
 let tool: ToolId = 'select';
+/** 마지막에 고른 개체. 핸들과 스타일 패널은 이 개체 기준 */
 let selected: string | null = null;
+/** Shift로 함께 고른 나머지 개체 (PR #1 요청) */
+const extraSel = new Set<string>();
 let zoom = EDITOR_INITIAL_ZOOM;
 let zoomBeforeCrop = zoom;
 let cropRect: Rect | null = null;
-let objectClipboard: EditorObject | null = null;
+let objectClipboard: EditorObject[] = [];
 let editingText: { id: string; isNew: boolean } | null = null;
-let lastMove: { id: string; at: number } | null = null;
+let lastMove: { key: string; at: number } | null = null;
 let fileFormat: FileFormat = 'png';
 const toolStyles: Record<ObjectType, ToolStyle> = structuredClone(DEFAULT_TOOL_STYLES);
 
 type Drag =
   | { kind: 'create'; id: string; type: ObjectType; x0: number; y0: number; sx: number; sy: number }
   | { kind: 'draw'; id: string }
-  | { kind: 'move'; id: string; x0: number; y0: number; moved: boolean }
+  | { kind: 'move'; ids: string[]; x0: number; y0: number; moved: boolean }
   | { kind: 'resize'; id: string; handle: Handle; x0: number; y0: number; start: EditorObject }
   | { kind: 'crop-new'; x0: number; y0: number }
   | { kind: 'crop-move'; x0: number; y0: number; start: Rect }
@@ -88,6 +94,32 @@ const textInput = $('#text-input') as HTMLTextAreaElement;
 
 const doc = (): EditorDoc => draft ?? history.present;
 const objectById = (id: string | null) => doc().objects.find((o) => o.id === id) ?? null;
+
+/** 고른 개체 전부의 id (마지막에 고른 것이 끝) */
+function selectedIds(): string[] {
+  const ids = [...extraSel].filter((id) => objectById(id));
+  if (selected && objectById(selected)) ids.push(selected);
+  return ids;
+}
+
+function selectOnly(id: string | null): void {
+  selected = id;
+  extraSel.clear();
+}
+
+/** Shift로 누르면 고르기/빼기를 바꾼다 */
+function toggleSelect(id: string): void {
+  if (id === selected) {
+    const rest = [...extraSel];
+    selected = rest.pop() ?? null;
+    if (selected) extraSel.delete(selected);
+  } else if (extraSel.has(id)) {
+    extraSel.delete(id);
+  } else {
+    if (selected) extraSel.add(selected);
+    selected = id;
+  }
+}
 
 // ---- 좌표 변환 ----
 function view() {
@@ -173,8 +205,23 @@ function screenRect(r: Rect): Rect {
 }
 
 function drawSelection(): void {
+  if (editingText) return;
+  const ids = selectedIds();
+  if (ids.length > 1) {
+    // 여러 개를 골랐을 때는 테두리만 보여 준다(크기 조절은 하나만 골랐을 때)
+    ctx.save();
+    ctx.setLineDash([5, 4]);
+    ctx.strokeStyle = '#2b6cde';
+    ctx.lineWidth = 1.5;
+    for (const id of ids) {
+      const r = screenRect(boundsOf(objectById(id)!));
+      ctx.strokeRect(r.x - 3, r.y - 3, r.w + 6, r.h + 6);
+    }
+    ctx.restore();
+    return;
+  }
   const o = objectById(selected);
-  if (!o || editingText) return;
+  if (!o) return;
   ctx.save();
   if (o.type === 'arrow' || o.type === 'line') {
     const [x1, y1] = toScreen(o.x1, o.y1);
@@ -277,6 +324,7 @@ function refresh(): void {
   $('#undo-btn').title = `${t.editor.undo} (${MAC ? '⌘' : 'Ctrl+'}Z)`;
   $('#redo-btn').title = `${t.editor.redo} (${MAC ? '⌘' : 'Ctrl+'}Y)`;
   if (selected && !objectById(selected)) selected = null;
+  for (const id of [...extraSel]) if (!objectById(id)) extraSel.delete(id);
   $('#zoom-label').textContent = formatZoom(zoom);
   renderObjects();
   renderStylePanel();
@@ -293,7 +341,7 @@ function setTool(next: ToolId): void {
   if (tool === 'crop' && next !== 'crop') exitCrop(false);
   tool = next;
   if (next === 'crop') {
-    selected = null;
+    selectOnly(null);
     cropRect = doc().crop ?? { x: 0, y: 0, w: shot.width, h: shot.height };
     zoomBeforeCrop = zoom;
     // 자르기 화면에서는 전체가 보이게 비율을 맞춘다 (EDT-02)
@@ -369,7 +417,7 @@ function handleAt(px: number, py: number, rect: Rect, handles: Handle[]): Handle
 
 function objectHandleAt(px: number, py: number): Handle | null {
   const o = objectById(selected);
-  if (!o) return null;
+  if (!o || extraSel.size > 0) return null;
   if (o.type === 'arrow' || o.type === 'line') {
     for (const [h, x, y] of [['p1', o.x1, o.y1], ['p2', o.x2, o.y2]] as const) {
       const [sx, sy] = toScreen(x, y);
@@ -456,8 +504,14 @@ canvas.addEventListener('pointerdown', (e) => {
       return;
     }
     const hit = hitTest(doc().objects, x, y, HIT_TOLERANCE_PX / zoom);
-    selected = hit;
-    if (hit) drag = { kind: 'move', id: hit, x0: x, y0: y, moved: false };
+    if (e.shiftKey && hit) {
+      toggleSelect(hit);
+      refresh();
+      return;
+    }
+    // 이미 고른 묶음 안을 누르면 묶음 그대로 옮긴다
+    if (!hit || !selectedIds().includes(hit)) selectOnly(hit);
+    if (hit) drag = { kind: 'move', ids: selectedIds(), x0: x, y0: y, moved: false };
     refresh();
     return;
   }
@@ -466,26 +520,26 @@ canvas.addEventListener('pointerdown', (e) => {
   if (type === 'badge') {
     const o = newObject('badge', x, y);
     commit(addBadge(history.present, { x: (o as { x: number }).x, y: (o as { y: number }).y, w: (o as { w: number }).w, h: (o as { h: number }).h }, styleFor('badge').color, o.id));
-    selected = o.id;
+    selectOnly(o.id);
     refresh();
     return;
   }
   if (type === 'text') {
     const hit = hitTest(doc().objects.filter((o) => o.type === 'text'), x, y, 0);
     if (hit) {
-      selected = hit;
+      selectOnly(hit);
       startTextEdit(hit, false);
       return;
     }
     const o = newObject('text', x, y);
     draft = addObject(history.present, o);
-    selected = o.id;
+    selectOnly(o.id);
     startTextEdit(o.id, true);
     return;
   }
   const o = newObject(type, x, y);
   draft = addObject(history.present, o);
-  selected = o.id;
+  selectOnly(o.id);
   drag = type === 'pen' || type === 'brush' || type === 'highlighter' ? { kind: 'draw', id: o.id } : { kind: 'create', id: o.id, type, x0: x, y0: y, sx: px, sy: py };
   requestRender();
 });
@@ -501,7 +555,9 @@ canvas.addEventListener('pointermove', (e) => {
   switch (drag.kind) {
     case 'create': {
       const isLine = drag.type === 'arrow' || drag.type === 'line';
-      const patch = isLine ? { x2: x, y2: y } : normalizeRect({ x: drag.x0, y: drag.y0, w: x - drag.x0, h: y - drag.y0 });
+      // Shift: 정사각형·정원, 수평·수직 직선 (PR #1 요청)
+      const end = !e.shiftKey ? { x, y } : isLine ? snapStraight(drag.x0, drag.y0, x, y) : constrainSquare(drag.x0, drag.y0, x, y);
+      const patch = isLine ? { x2: end.x, y2: end.y } : normalizeRect({ x: drag.x0, y: drag.y0, w: end.x - drag.x0, h: end.y - drag.y0 });
       draft = updateObject(draft ?? base, drag.id, patch);
       break;
     }
@@ -515,7 +571,7 @@ canvas.addEventListener('pointermove', (e) => {
     }
     case 'move':
       drag.moved = true;
-      draft = moveObject(base, drag.id, x - drag.x0, y - drag.y0);
+      draft = moveObjects(base, drag.ids, x - drag.x0, y - drag.y0);
       break;
     case 'resize':
       draft = updateObject(base, drag.id, resizeObject(drag.start, drag.handle, x - drag.x0, y - drag.y0));
@@ -568,7 +624,7 @@ function endDrag(): void {
     // 클릭만 하고 끌지 않았으면 만들지 않는다
     if (!b || (b.w * zoom < 3 && b.h * zoom < 3)) {
       draft = null;
-      selected = null;
+      selectOnly(null);
       refresh();
       return;
     }
@@ -645,7 +701,7 @@ function finishTextEdit(): void {
     // 빈 글자는 남기지 않는다
     draft = null;
     if (!isNew) commit(removeObject(history.present, id));
-    selected = null;
+    selectOnly(null);
     refresh();
     return;
   }
@@ -757,7 +813,20 @@ function toggle(options: [string, string][], current: string, onPick: (v: string
 }
 
 /** 고른 개체가 있으면 그 개체를, 없으면 지금 도구의 다음 스타일을 바꾼다 */
-function applyStyle(type: ObjectType, patch: Partial<ToolStyle>, final: boolean): void {
+function applyStyle(type: ObjectType | null, patch: Partial<ToolStyle>, final: boolean): void {
+  const ids = selectedIds();
+  if (ids.length > 1) {
+    // 여러 개를 골랐으면 색만 함께 바꾼다 (PR #1 답변 E ①)
+    if (patch.color === undefined) return;
+    let next = history.present;
+    for (const id of ids) {
+      const obj = objectById(id);
+      if (obj && 'color' in obj) next = updateObject(next, id, { color: patch.color } as Partial<EditorObject>);
+    }
+    commit(next);
+    return;
+  }
+  if (!type) return;
   Object.assign(toolStyles[type], patch);
   const o = objectById(selected);
   if (!o || o.type !== type) {
@@ -787,6 +856,15 @@ function applyStyle(type: ObjectType, patch: Partial<ToolStyle>, final: boolean)
 function renderStylePanel(): void {
   const panel = $('#style-panel');
   panel.textContent = '';
+  const ids = selectedIds();
+  if (ids.length > 1) {
+    const h = document.createElement('h3');
+    h.textContent = t.editor.multiSelected(ids.length);
+    panel.appendChild(h);
+    const first = ids.map(objectById).find((x) => x && 'color' in x) as { color: string } | undefined;
+    panel.appendChild(field(t.editor.panel.color, swatchRow(first?.color ?? null, false, (v) => applyStyle(null, { color: v! }, true))));
+    return;
+  }
   const o = objectById(selected);
   const type: ObjectType | null = o ? o.type : tool !== 'select' && tool !== 'crop' ? (tool as ObjectType) : null;
   if (!type) {
@@ -840,17 +918,20 @@ function objectColor(o: EditorObject): string {
 
 function renderObjects(): void {
   const objs = doc().objects;
-  $('#objects-title').textContent = t.editor.objects(objs.length);
+  // "개체"는 왼쪽, 개수는 오른쪽 (PR #1 요청)
+  $('#objects-label').textContent = t.editor.objectsLabel;
+  $('#objects-count').textContent = String(objs.length);
+  const ids = new Set(selectedIds());
   $('#objects-empty').hidden = objs.length > 0;
   const list = $('#objects-list');
   list.textContent = '';
   // 나중에 만든(위에 있는) 개체가 목록 위쪽에 온다
   [...objs].reverse().forEach((o) => {
     const li = document.createElement('li');
-    li.className = o.id === selected ? 'selected' : '';
+    li.className = ids.has(o.id) ? 'selected' : '';
     li.innerHTML = `${icons[o.type as IconName]}<span class="name"></span>`;
     li.querySelector('.name')!.textContent = objectName(o);
-    if (o.id === selected) {
+    if (o.id === selected && ids.size === 1) {
       const mk = (icon: IconName, title: string, fn: () => void) => {
         const b = document.createElement('button');
         b.className = 'icon-btn';
@@ -872,9 +953,11 @@ function renderObjects(): void {
       li.appendChild(dot);
     }
     // TODO(미확인): 목록의 줄을 누르면 무슨 일이 일어나는지 모른다. 그 개체를 고른다
-    li.addEventListener('click', () => {
+    // Shift를 누르고 누르면 여러 개를 고른다 (PR #1 요청)
+    li.addEventListener('click', (e) => {
       if (tool !== 'select') setTool('select');
-      selected = o.id;
+      if (e.shiftKey) toggleSelect(o.id);
+      else selectOnly(o.id);
       refresh();
     });
     list.appendChild(li);
@@ -970,7 +1053,8 @@ async function doExport(format: FileFormat, ask = false): Promise<void> {
 
 // ---- 키보드 (EDT-15) ----
 function runAction(a: EditorAction): boolean {
-  const sel = objectById(selected);
+  const ids = selectedIds();
+  const sels = ids.map((id) => objectById(id)!).filter(Boolean);
   switch (a.type) {
     case 'tool':
       setTool(a.tool);
@@ -988,22 +1072,22 @@ function runAction(a: EditorAction): boolean {
     }
     case 'duplicate':
     case 'paste': {
-      const source = a.type === 'duplicate' ? sel : objectClipboard;
-      if (!source) return a.type === 'duplicate';
-      const next = cloneInto(history.present, source);
-      const created = next.objects[next.objects.length - 1];
-      if (a.type === 'paste') objectClipboard = created;
-      selected = created.id;
-      commit(next);
+      const sources = a.type === 'duplicate' ? sels : objectClipboard;
+      if (sources.length === 0) return a.type === 'duplicate';
+      const r = cloneManyInto(history.present, sources);
+      if (a.type === 'paste') objectClipboard = r.ids.map((id) => r.doc.objects.find((o) => o.id === id)!);
+      selectOnly(r.ids[r.ids.length - 1]);
+      r.ids.slice(0, -1).forEach((id) => extraSel.add(id));
+      commit(r.doc);
       return true;
     }
     case 'copyObject':
-      if (!sel) return false; // 고른 개체가 없으면 브라우저 기본 복사에 맡긴다
-      objectClipboard = structuredClone(sel);
+      if (sels.length === 0) return false; // 고른 개체가 없으면 브라우저 기본 복사에 맡긴다
+      objectClipboard = structuredClone(sels);
       return true;
     case 'delete':
-      if (!sel) return false;
-      commit(removeObject(history.present, sel.id));
+      if (sels.length === 0) return false;
+      commit(removeObjects(history.present, ids));
       return true;
     case 'enter': {
       const wasCrop = tool === 'crop';
@@ -1013,21 +1097,26 @@ function runAction(a: EditorAction): boolean {
     case 'escape':
       if (!$('#shortcuts-dialog').hidden) $('#shortcuts-dialog').hidden = true;
       else if (tool === 'crop') exitCrop(false);
-      else {
-        selected = null;
+      else if (tool !== 'select') {
+        // 그리기 도구를 쓰다가 Esc → 선택 도구로 (PR #1 요청)
+        selectOnly(null);
+        setTool('select');
+      } else {
+        selectOnly(null);
         refresh();
       }
       return true;
     case 'move': {
-      if (!sel) return false;
-      const next = moveObject(history.present, sel.id, a.dx, a.dy);
+      if (sels.length === 0) return false;
+      const next = moveObjects(history.present, ids, a.dx, a.dy);
+      const key = ids.join(',');
       // 연달아 누른 화살표 키는 실행 취소 한 번에 되돌아가도록 묶는다
-      if (lastMove && lastMove.id === sel.id && Date.now() - lastMove.at < 800) {
+      if (lastMove && lastMove.key === key && Date.now() - lastMove.at < 800) {
         history.replace(next);
         scheduleSave();
         refresh();
       } else commit(next);
-      lastMove = { id: sel.id, at: Date.now() };
+      lastMove = { key, at: Date.now() };
       return true;
     }
     case 'export':

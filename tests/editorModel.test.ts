@@ -6,6 +6,9 @@ import {
   addObject,
   clampValue,
   cloneInto,
+  cloneManyInto,
+  moveObjects,
+  removeObjects,
   hitTest,
   moveLayer,
   resizeObject,
@@ -146,5 +149,28 @@ describe('자유 곡선과 번호 표시의 이동·크기 조절 (EDT-01, EDT-1
     const r = resizeObject(badge, 'se', 30, 0) as { w: number; h: number };
     expect(r.w).toBe(r.h);
     expect(r.w).toBe(70);
+  });
+});
+
+describe('여러 개 선택한 개체 다루기 (PR #1 요청: Shift 다중 선택)', () => {
+  const three = () => ['a', 'b', 'c'].reduce((doc, id, i) => addObject(doc, rect(id, i * 200)), base());
+  // 목적: 여러 개를 지울 때 선택하지 않은 개체까지 지워지거나 일부만 지워지는 결함을 막는다
+  it('[EP] TC-MULTI-01 a, c 선택 후 지우기 → b만 남음', () => {
+    expect(removeObjects(three(), ['a', 'c']).objects.map((o) => o.id)).toEqual(['b']);
+  });
+
+  // 목적: 여러 개를 옮길 때 선택하지 않은 개체도 함께 움직이는 결함을 막는다
+  it('[EP] TC-MULTI-02 a, b 선택 후 (+5, +7) 옮기기 → a, b만 이동', () => {
+    const moved = moveObjects(three(), ['a', 'b'], 5, 7).objects.map((o) => (o.type === 'rect' ? [o.x, o.y] : null));
+    expect(moved).toEqual([[5, 7], [205, 7], [400, 0]]);
+  });
+
+  // 목적: 여러 개를 복제할 때 겹침 순서가 뒤바뀌거나 번호 표시 번호가 겹치는 결함을 막는다
+  it('[EP] TC-MULTI-03 번호 표시 2개 복제 → 원래 순서대로 맨 위에, 새 번호 3, 4', () => {
+    let d = addBadge(base(), box, '#000', 'b1');
+    d = addBadge(d, box, '#000', 'b2');
+    const r = cloneManyInto(d, [d.objects[1], d.objects[0]]);
+    expect(numbers(r.doc)).toEqual([1, 2, 3, 4]);
+    expect(r.ids).toHaveLength(2);
   });
 });

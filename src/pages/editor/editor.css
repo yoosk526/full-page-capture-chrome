@@ -222,22 +222,33 @@ input[type='range'] {
   width: 100%;
 }
 
+/* 한쪽/양쪽, 흐리게/모자이크: 폭을 꽉 채운 큰 버튼, 고른 쪽은 두께 막대와 같은 색 (PR #1 요청) */
 .toggle {
-  display: inline-flex;
+  display: flex;
+  width: 100%;
+  padding: 3px;
   border: 1px solid var(--border);
-  border-radius: var(--radius);
-  overflow: hidden;
-}
-
-.toggle button {
-  padding: 6px 12px;
-  border: 0;
+  border-radius: var(--pill);
   background: var(--surface);
 }
 
+.toggle button {
+  flex: 1;
+  height: 36px;
+  border: 0;
+  border-radius: var(--pill);
+  background: transparent;
+  font-size: 15px;
+  font-weight: 500;
+}
+
 .toggle button.on {
-  background: var(--text);
+  background: var(--accent);
   color: #fff;
+}
+
+input[type='range'] {
+  accent-color: var(--accent);
 }
 
 .objects {
@@ -245,9 +256,16 @@ input[type='range'] {
   padding: 14px;
 }
 
-.objects h2 {
+.objects-title {
+  display: flex;
+  justify-content: space-between;
   margin: 0 0 8px;
-  font-size: 13px;
+  font-size: 15px;
+}
+
+.objects-count {
+  color: var(--muted);
+  font-weight: 500;
 }
 
 .objects ul {
@@ -276,6 +294,7 @@ input[type='range'] {
 
 .objects li .name {
   flex: 1;
+  font-size: 14px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
