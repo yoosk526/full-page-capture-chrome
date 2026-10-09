@@ -83,7 +83,7 @@ export class Stitcher {
 }
 
 /** 목록용 썸네일: 페이지 위쪽 부분 (GAL-02) */
-async function makeThumb(canvas: OffscreenCanvas): Promise<Blob> {
+export async function makeThumb(canvas: OffscreenCanvas): Promise<Blob> {
   const ratio = THUMB_W / canvas.width;
   const h = Math.min(THUMB_H, Math.max(1, Math.round(canvas.height * ratio)));
   const t = new OffscreenCanvas(THUMB_W, h);

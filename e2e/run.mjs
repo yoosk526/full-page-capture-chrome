@@ -403,6 +403,108 @@ async function galleryFlow(context, worker, extId) {
   await page.close();
 }
 
+/** 열린 툴바 팝업에 CDP로 붙어 안에서 스크립트를 실행한다 (Playwright가 팝업을 페이지로 주지 않아서) */
+async function attachPopup(context, page) {
+  const cdp = await context.newCDPSession(page);
+  let pop = null;
+  for (let k = 0; k < 30 && !pop; k++) {
+    const { targetInfos } = await cdp.send('Target.getTargets');
+    pop = targetInfos.find((t) => t.url.endsWith('/popup.html'));
+    if (!pop) await new Promise((r) => setTimeout(r, 100));
+  }
+  if (!pop) throw new Error('popup not found');
+  const { sessionId } = await cdp.send('Target.attachToTarget', { targetId: pop.targetId, flatten: false });
+  let id = 0;
+  const waiters = new Map();
+  cdp.on('Target.receivedMessageFromTarget', (e) => {
+    if (e.sessionId !== sessionId) return;
+    const m = JSON.parse(e.message);
+    waiters.get(m.id)?.(m);
+    waiters.delete(m.id);
+  });
+  const send = (method, params = {}) =>
+    new Promise((res) => {
+      const mid = ++id;
+      waiters.set(mid, res);
+      cdp.send('Target.sendMessageToTarget', { sessionId, message: JSON.stringify({ id: mid, method, params }) }).catch(() => res({}));
+    });
+  return {
+    eval: async (expression) => (await send('Runtime.evaluate', { expression, awaitPromise: true, returnByValue: true })).result?.result?.value,
+    screenshot: async (path) => {
+      const r = await send('Page.captureScreenshot', { format: 'png' });
+      if (r.result) writeFileSync(path, Buffer.from(r.result.data, 'base64'));
+    },
+  };
+}
+
+async function shotSize(page) {
+  return page.evaluate(async () => {
+    const id = new URLSearchParams(location.search).get('id');
+    const db = await new Promise((r) => {
+      const q = indexedDB.open('hanjang-capture');
+      q.onsuccess = () => r(q.result);
+    });
+    const shot = await new Promise((r) => {
+      const q = db.transaction('shots').objectStore('shots').get(id);
+      q.onsuccess = () => r(q.result);
+    });
+    return { w: shot.width, h: shot.height };
+  });
+}
+
+/** 툴바 팝업: 고르는 창, 페이지 전체, 페이지 일부(마우스로 영역 끌기) (PR #1 요청) */
+async function popupFlow(context, worker, origin) {
+  const page = context.pages()[0];
+  await page.goto(origin + '/long.html');
+  await page.bringToFront();
+  await worker.evaluate(() => chrome.action.openPopup());
+  let pop = await attachPopup(context, page);
+  await new Promise((r) => setTimeout(r, 300));
+  const visible = await pop.eval(`[...document.querySelectorAll('section')].filter((s) => !s.hidden).map((s) => s.id).join(',')`);
+  const keys = await pop.eval(`document.getElementById('key-full').textContent + ' / ' + document.getElementById('key-area').textContent`);
+  check('팝업: 아이콘을 누르면 "무엇을 찍을까요?" 고르는 창 + 단축키 표시', visible === 'choose-view' && keys === 'Ctrl+Shift+K / Ctrl+Shift+E', `${visible} ${keys}`);
+  await pop.screenshot(join(OUT, 'popup-choose.png'));
+
+  let resultPromise = context.waitForEvent('page', { predicate: (p) => p.url().includes('result.html?id='), timeout: 60000 });
+  await pop.eval(`document.getElementById('choose-full').click()`);
+  let result = await resultPromise.catch(() => null);
+  check('팝업: "페이지 전체" → 촬영 후 결과 탭', !!result && (await shotSize(result)).h >= 3560);
+  if (result) await result.close();
+
+  await page.bringToFront();
+  await worker.evaluate(() => chrome.action.openPopup());
+  pop = await attachPopup(context, page);
+  await new Promise((r) => setTimeout(r, 300));
+  await pop.eval(`document.getElementById('choose-area').click()`);
+  await page.waitForFunction(() => !!document.getElementById('__hanjang-area'), null, { timeout: 5000 });
+  const dpr = await page.evaluate(() => devicePixelRatio);
+  resultPromise = context.waitForEvent('page', { predicate: (p) => p.url().includes('result.html?id='), timeout: 30000 });
+  await page.mouse.move(100, 120);
+  await page.mouse.down();
+  await page.mouse.move(250, 200, { steps: 4 });
+  await page.mouse.move(400, 320, { steps: 4 });
+  await page.mouse.up();
+  result = await resultPromise.catch(() => null);
+  const size = result ? await shotSize(result) : null;
+  check('팝업: "페이지 일부" → 끈 영역(300x200)만 찍힘', !!size && size.w === 300 * dpr && size.h === 200 * dpr, JSON.stringify(size));
+  const overlayGone = await page.evaluate(() => !document.getElementById('__hanjang-area'));
+  check('팝업: 영역을 고른 뒤 덮개가 사라짐', overlayGone);
+  if (result) {
+    await result.screenshot({ path: join(OUT, 'result-area.png') });
+    await result.close();
+  }
+
+  // Esc로 영역 고르기 취소
+  await page.bringToFront();
+  await worker.evaluate(() => chrome.action.openPopup());
+  pop = await attachPopup(context, page);
+  await new Promise((r) => setTimeout(r, 300));
+  await pop.eval(`document.getElementById('choose-area').click()`);
+  await page.waitForFunction(() => !!document.getElementById('__hanjang-area'), null, { timeout: 5000 });
+  await page.keyboard.press('Escape');
+  check('팝업: 영역 고르기에서 Esc → 취소(덮개 사라짐)', await page.evaluate(() => !document.getElementById('__hanjang-area')));
+}
+
 async function main() {
   rmSync(OUT, { recursive: true, force: true });
   mkdirSync(OUT, { recursive: true });
@@ -533,24 +635,8 @@ async function main() {
     await autoDownloadFlow(context, worker, extId, origin, '/noise.html');
     await galleryFlow(context, worker, extId);
 
-    // 실제 툴바 팝업으로 시작 (CAP-01): chrome.action.openPopup()으로 팝업을 열면 팝업 코드가 촬영을 시작해야 한다
-    {
-      const page = context.pages()[0];
-      await page.goto(origin + '/long.html');
-      await page.bringToFront();
-      const resultPromise = context.waitForEvent('page', { predicate: (p) => p.url().includes('result.html?id='), timeout: 60000 });
-      const opened = await worker.evaluate(async () => {
-        try {
-          await chrome.action.openPopup();
-          return 'ok';
-        } catch (e) {
-          return String(e);
-        }
-      });
-      const result = await resultPromise.catch(() => null);
-      check('팝업: 툴바 팝업을 열면 곧바로 촬영 → 결과 탭 열림', opened === 'ok' && !!result, opened);
-      if (result) await result.close();
-    }
+    // 실제 툴바 팝업 (CAP-01, PR #1): 고르는 창 → 페이지 전체 / 페이지 일부
+    await popupFlow(context, worker, origin);
 
     // 보호 페이지 안내 (CAP-11): 확장 페이지 자신은 찍을 수 없는 주소이므로 안내가 나와야 한다
     const pop = await context.newPage();

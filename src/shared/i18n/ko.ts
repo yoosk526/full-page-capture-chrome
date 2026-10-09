@@ -18,6 +18,10 @@ export const ko = {
     untitled: '스크린샷',
   },
   popup: {
+    chooseTitle: '무엇을 찍을까요?',
+    chooseFull: '페이지 전체',
+    chooseArea: '페이지 일부',
+    shortcutSettings: '단축키 설정',
     capturing: '페이지를 촬영하고 있어요',
     paused: '잠시 멈춤',
     stageScroll: '스크롤하며 찍는 중',
@@ -38,6 +42,10 @@ export const ko = {
       '크롬 설정 화면이나 웹 스토어 같은 브라우저 전용 페이지는 어떤 확장 프로그램도 찍을 수 없어요. 일반 웹사이트에서는 잘 동작해요.',
     blockedTry: '예시 페이지에서 해 보기',
     autoDownloaded: '파일로 내려받았어요',
+  },
+  area: {
+    hint: '찍을 부분을 마우스로 끌어서 고르세요 · Esc를 누르면 취소',
+    failed: '찍지 못했어요',
   },
   result: {
     title: '스크린샷 완성',

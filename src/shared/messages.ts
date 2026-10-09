@@ -28,6 +28,8 @@ export const POPUP_PORT = 'capture-popup';
 
 /** 팝업 → 서비스 워커 */
 export type PopupToWorker =
+  | { kind: 'query'; tabId: number }
+  | { kind: 'area'; tabId: number; windowId: number }
   | { kind: 'open'; tabId: number; windowId: number }
   | { kind: 'togglePause' }
   | { kind: 'stop' };
@@ -36,6 +38,8 @@ export type CaptureStage = 'scroll' | 'stitch' | 'save';
 
 /** 서비스 워커 → 팝업 */
 export type WorkerToPopup =
+  /** 팝업이 열렸을 때: 이 탭에서 촬영이 진행(또는 멈춤) 중인지, 단축키로 "전체 찍기"를 눌러 열렸는지 */
+  | { kind: 'state'; active: boolean; autoStartFull: boolean }
   | {
       kind: 'progress';
       current: number;
@@ -47,3 +51,12 @@ export type WorkerToPopup =
     }
   | { kind: 'error'; reason: 'file-access' | 'generic'; message: string }
   | { kind: 'done'; autoDownloaded: boolean };
+
+/** 영역 고르기 화면(area.js) → 서비스 워커 */
+export interface AreaSelected {
+  kind: 'areaSelected';
+  rect: { x: number; y: number; w: number; h: number };
+  viewportWidth: number;
+  title: string;
+  url: string;
+}

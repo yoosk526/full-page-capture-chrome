@@ -7,6 +7,28 @@
     <link rel="stylesheet" href="./pages/popup/popup.css" />
   </head>
   <body>
+    <!-- 무엇을 찍을지 고르기 (PR #1 요청) -->
+    <section id="choose-view" hidden>
+      <h1 class="choose-title" data-i18n="popup.chooseTitle"></h1>
+      <button class="choice primary" id="choose-full">
+        <span class="choice-icon" data-icon="shapeFull"></span>
+        <span class="choice-label" data-i18n="popup.chooseFull"></span>
+        <kbd class="choice-key" id="key-full"></kbd>
+      </button>
+      <button class="choice" id="choose-area">
+        <span class="choice-icon" data-icon="shapeArea"></span>
+        <span class="choice-label" data-i18n="popup.chooseArea"></span>
+        <kbd class="choice-key" id="key-area"></kbd>
+      </button>
+      <hr />
+      <button class="choice" id="open-gallery">
+        <span class="choice-icon" data-icon="folder"></span>
+        <span class="choice-label" data-i18n="common.gallery"></span>
+        <span class="choice-key" data-icon="arrowOut"></span>
+      </button>
+      <button class="link" id="open-shortcuts" data-i18n="popup.shortcutSettings"></button>
+    </section>
+
     <!-- 촬영 진행 (CAP-03) -->
     <section id="progress-view" hidden>
       <div class="row">

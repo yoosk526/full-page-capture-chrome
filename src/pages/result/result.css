@@ -21,6 +21,7 @@ body {
   gap: 10px;
   min-width: 0;
   flex: 1;
+  overflow: hidden;
 }
 
 .title-icon {
@@ -58,7 +59,9 @@ h1 {
 }
 
 .image-size {
-  flex: none;
+  flex: 0 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
   color: var(--muted);
   font-size: 13px;
   white-space: nowrap;

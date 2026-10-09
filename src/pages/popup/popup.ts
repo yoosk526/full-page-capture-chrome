@@ -12,7 +12,7 @@ applyI18n();
 applyIcons();
 
 function show(id: string): void {
-  for (const v of ['progress-view', 'blocked-view', 'message-view']) $(`#${v}`).hidden = v !== id;
+  for (const v of ['choose-view', 'progress-view', 'blocked-view', 'message-view']) $(`#${v}`).hidden = v !== id;
 }
 
 function showMessage(title: string, body: string): void {
@@ -57,12 +57,43 @@ async function main(): Promise<void> {
     return;
   }
 
-  show('progress-view');
-  render({ kind: 'progress', current: 0, total: 0, stage: 'scroll', paused: false, width: 0, height: 0 });
   const port = chrome.runtime.connect({ name: POPUP_PORT });
   const post = (m: PopupToWorker) => port.postMessage(m);
-  port.onMessage.addListener(render);
-  post({ kind: 'open', tabId: tab.id, windowId: tab.windowId });
+  const tabId = tab.id;
+  const startFull = () => {
+    show('progress-view');
+    render({ kind: 'progress', current: 0, total: 0, stage: 'scroll', paused: false, width: 0, height: 0 });
+    post({ kind: 'open', tabId, windowId: tab.windowId });
+  };
+  port.onMessage.addListener((msg: WorkerToPopup) => {
+    if (msg.kind !== 'state') return render(msg);
+    // 이 탭에서 찍는 중(멈춤 포함)이면 이어서, 단축키로 열었으면 바로 시작, 아니면 고르는 창 (PR #1 요청)
+    if (msg.active || msg.autoStartFull) startFull();
+    else void showChooser();
+  });
+  post({ kind: 'query', tabId });
+
+  async function showChooser(): Promise<void> {
+    show('choose-view');
+    const commands = await chrome.commands.getAll();
+    const key = (name: string) => commands.find((c) => c.name === name)?.shortcut ?? '';
+    $('#key-full').textContent = key('capture-full');
+    $('#key-area').textContent = key('capture-area');
+  }
+  $('#choose-full').addEventListener('click', startFull);
+  $('#choose-area').addEventListener('click', () => {
+    post({ kind: 'area', tabId, windowId: tab.windowId });
+    // 팝업이 닫혀야 페이지 위에서 영역을 끌 수 있다
+    setTimeout(() => window.close(), 50);
+  });
+  $('#open-gallery').addEventListener('click', () => {
+    void chrome.tabs.create({ url: chrome.runtime.getURL('gallery.html') });
+    window.close();
+  });
+  $('#open-shortcuts').addEventListener('click', () => {
+    void chrome.tabs.create({ url: 'chrome://extensions/shortcuts' });
+    window.close();
+  });
 
   $('#pause-btn').addEventListener('click', () => post({ kind: 'togglePause' }));
   $('#stop-btn').addEventListener('click', () => {
