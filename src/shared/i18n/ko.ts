@@ -295,7 +295,7 @@ export const ko = {
     selected: (n: number) => `선택됨: ${n}`,
     delete: '지우기',
     saveAll: (n: number) => `모두 저장: ${n}`,
-    view: '크게 보기',
+    view: '전체 보기',
     edit: '편집',
     deleteOne: '지우기',
     deleteManyConfirm: (n: number) => `선택한 스크린샷 ${n}개를 지울까요? 지운 뒤에는 되돌릴 수 없어요.`,

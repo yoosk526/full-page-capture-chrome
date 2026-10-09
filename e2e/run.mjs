@@ -529,6 +529,23 @@ async function galleryFlow(context, worker, extId) {
   await page.locator('.card').first().hover();
   await page.screenshot({ path: join(OUT, 'gallery.png') });
 
+  // 카드를 누르면 창이 열리지 않고 고르기만 된다. 크게 보기는 마우스를 올려 나오는 "전체 보기"로만 (PR #1 다섯 번째 요청)
+  const pagesBefore = context.pages().length;
+  await page.locator('.card .thumb').first().click();
+  await page.waitForTimeout(500);
+  const picked = await page.locator('#selected-count').textContent();
+  check('내 스크린샷: 카드를 누르면 새 창 없이 선택됨: 1', context.pages().length === pagesBefore && picked === '선택됨: 1' && (await page.locator('.card.selected').count()) === 1, `${picked}, 탭 ${pagesBefore} → ${context.pages().length}`);
+  await page.locator('.card .thumb').first().click();
+  check('내 스크린샷: 다시 누르면 선택이 풀리고 선택 막대가 사라짐', (await page.locator('.card.selected').count()) === 0 && (await page.locator('#select-bar').isHidden()));
+  await page.locator('.card').first().hover();
+  const viewBtn = page.locator('.card').first().locator('.hover-icons button').first();
+  const viewTitle = await viewBtn.getAttribute('title');
+  const opened = context.waitForEvent('page', { predicate: (p) => p.url().includes('result.html?id='), timeout: 10000 });
+  await viewBtn.click();
+  const viewPage = await opened.catch(() => null);
+  check('내 스크린샷: 마우스를 올려 나오는 "전체 보기" → 결과 화면이 열림', viewTitle === '전체 보기' && !!viewPage, viewTitle);
+  if (viewPage) await viewPage.close();
+
   await page.locator('#select-all').click();
   const sel = await page.locator('#selected-count').textContent();
   check('내 스크린샷: 전체 선택 → "선택됨: N", 버튼은 "전체 선택 해제"', sel === `선택됨: ${cards}` && (await page.locator('#select-all').textContent()) === '전체 선택 해제', sel);

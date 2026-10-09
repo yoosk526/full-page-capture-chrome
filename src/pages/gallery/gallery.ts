@@ -66,21 +66,20 @@ function card(s: ShotRecord): HTMLElement {
   el.title = title; // 제목 전체를 말풍선으로 (GAL-03)
   el.querySelector('.meta')!.textContent = cardMeta(s.url, L.width, L.height, s.createdAt);
   const hover = el.querySelector('.hover-icons')!;
-  // TODO(추정): 세 아이콘의 동작은 화면 모양으로 짐작했다 (크게 보기 = 결과 화면, 편집 = 편집기, 삭제)
+  // TODO(추정): 세 아이콘의 동작은 화면 모양으로 짐작했다 (전체 보기 = 결과 화면, 편집 = 편집기, 삭제)
   hover.append(
     iconButton('expand', G.view, () => openPage(`result.html?id=${s.id}`)),
     iconButton('edit', G.edit, () => openPage(`editor.html?id=${s.id}`)),
     iconButton('trash', G.deleteOne, () => void removeOne(s)),
   );
+  // 카드를 누르면 결과 화면을 열지 않고 고르기만 한다. 크게 보려면 마우스를 올려 나오는 "전체 보기"를 누른다 (PR #1 다섯 번째 요청)
   el.addEventListener('click', () => {
-    if (selecting) {
-      // TODO(미확인): 카드를 하나씩 눌러 고르는 방법을 모른다. 선택 모드에서 카드를 누르면 고르거나 뺀다
-      if (selected.has(s.id)) selected.delete(s.id);
-      else selected.add(s.id);
-      render();
-    } else {
-      openPage(`result.html?id=${s.id}`);
-    }
+    selecting = true;
+    if (selected.has(s.id)) selected.delete(s.id);
+    else selected.add(s.id);
+    // 하나도 고르지 않게 되면 선택 상태를 끝낸다
+    if (selected.size === 0) selecting = false;
+    render();
   });
   return el;
 }

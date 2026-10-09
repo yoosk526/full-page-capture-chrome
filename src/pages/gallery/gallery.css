@@ -133,10 +133,6 @@
   display: flex;
 }
 
-.selecting .card .hover-icons {
-  display: none;
-}
-
 .hover-icons .icon-btn {
   width: 30px;
   height: 30px;
