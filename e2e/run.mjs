@@ -692,6 +692,7 @@ async function popupFlow(context, worker, origin) {
   for (const [path, edgeY, label] of [
     ['/smooth.html', (vh) => vh - 5, '부드러운 스크롤 페이지'],
     ['/inner.html', (vh) => vh - 45, '페이지 안 스크롤 상자'],
+    ['/framed.html', (vh) => vh - 5, '틀(iframe) 안 본문 (Issue #3)'],
   ]) {
     await page.goto(origin + path);
     await page.bringToFront();
@@ -706,7 +707,7 @@ async function popupFlow(context, worker, origin) {
     await page.mouse.down();
     await page.mouse.move(400, edgeY(h), { steps: 6 });
     await new Promise((r) => setTimeout(r, 1200));
-    const moved = await page.evaluate(() => Math.max(scrollY, document.querySelector('.scroller')?.scrollTop ?? 0));
+    const moved = await page.evaluate(() => Math.max(scrollY, document.querySelector('.scroller')?.scrollTop ?? 0, document.getElementById('mainFrame')?.contentWindow.scrollY ?? 0));
     await page.mouse.up();
     result = await resultPromise.catch(() => null);
     const got = result ? await shotSize(result) : null;
@@ -817,6 +818,7 @@ async function main() {
       ['긴 페이지(스티키 머리글)', '/long.html', { minH: 3560, pixels: [[5, 'dark', '맨 위는 머리글'], [-5, 'not-white', '맨 아래까지 내용이 있음'], ['vh+5', 'not-dark', '두 번째 조각에 머리글이 반복되지 않음']] }],
       ['어두운 페이지', '/dark.html', { minH: 2400, pixels: [[-5, 'dark', '맨 아래도 어두운 바탕']] }],
       ['본문이 스크롤되는 페이지', '/bodyscroll.html', { minH: 3000, pixels: [[-5, 'not-white', '맨 아래 블록까지 찍힘']] }],
+      ['틀(iframe) 안 본문 (Issue #3)', '/framed.html', { minH: 4000, pixels: [[5, 'not-white', '위쪽 초록 띠'], [-5, 'dark', '틀 안 본문 맨 아래 검은 띠까지 찍힘']] }],
       ['내부 스크롤 영역', '/inner.html', { minH: 2552, pixels: [[5, 'not-white', '앱 머리글 포함'], [-5, 'not-white', '바닥 막대 포함']] }],
     ]) {
       const page = context.pages()[0] ?? (await context.newPage());

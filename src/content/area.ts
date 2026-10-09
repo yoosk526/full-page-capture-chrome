@@ -44,14 +44,16 @@ function start(): void {
   hint.textContent = t.area.hint;
   document.documentElement.appendChild(host);
 
-  // 스크롤할 대상: 창이 스크롤되면 창, 아니면 누른 곳의 스크롤 상자(웹 메일·대시보드 등)
+  // 스크롤할 대상: 창이 스크롤되면 창, 아니면 누른 곳의 스크롤 상자(웹 메일·대시보드 등)나
+  // 페이지 안의 틀(iframe, 네이버 블로그 등). scrollBox는 화면에서 그 대상이 차지한 요소(틀이면 iframe)
   let inner: HTMLElement | null = null;
+  let scrollBox: HTMLElement | null = null;
   const scrollPos = () => (inner ? inner.scrollTop : window.scrollY);
   /** 자동 스크롤이 반응하는 위·아래 끝 (화면 기준) */
   const edges = () => {
-    if (!inner) return { top: 0, height: window.innerHeight };
-    const r = inner.getBoundingClientRect();
-    const top = Math.max(0, r.top + inner.clientTop);
+    if (!inner || !scrollBox) return { top: 0, height: window.innerHeight };
+    const r = scrollBox.getBoundingClientRect();
+    const top = Math.max(0, r.top + scrollBox.clientTop);
     return { top, height: Math.min(window.innerHeight, top + inner.clientHeight) - top };
   };
 
@@ -111,7 +113,9 @@ function start(): void {
   layer.addEventListener('pointerdown', (e) => {
     e.preventDefault();
     layer.setPointerCapture(e.pointerId);
-    inner = windowScrolls() ? null : scrollerAt(e.clientX, e.clientY, host);
+    const found = windowScrolls() ? null : scrollerAt(e.clientX, e.clientY, host);
+    inner = found?.el ?? null;
+    scrollBox = found?.box ?? null;
     origin = { x: e.clientX, y: e.clientY + scrollPos() };
     pointer = { x: e.clientX, y: e.clientY };
     layer.classList.add('dragging');
@@ -130,7 +134,7 @@ function start(): void {
     await nextFrame();
     // 촬영 쪽(content.js)이 같은 스크롤 상자를 쓰도록 표시해 둔다
     document.querySelectorAll(`[${SCROLLER_ATTR}]`).forEach((el) => el.removeAttribute(SCROLLER_ATTR));
-    inner?.setAttribute(SCROLLER_ATTR, '');
+    scrollBox?.setAttribute(SCROLLER_ATTR, '');
     const msg: AreaSelected = { kind: 'areaSelected', rect, title: document.title, url: location.href };
     const res = (await chrome.runtime.sendMessage(msg)) as { ok: boolean } | undefined;
     if (res && !res.ok) showFailed();
@@ -147,14 +151,29 @@ function windowScrolls(): boolean {
   return viewport !== 'hidden' && viewport !== 'clip';
 }
 
-/** 누른 곳에서 가장 가까운 세로 스크롤 상자 */
-function scrollerAt(x: number, y: number, host: HTMLElement): HTMLElement | null {
+/** 누른 곳에서 가장 가까운 세로 스크롤 상자. 같은 사이트의 틀(iframe)이면 그 안의 문서를 스크롤한다 */
+function scrollerAt(x: number, y: number, host: HTMLElement): { el: HTMLElement; box: HTMLElement } | null {
   const hit = document.elementsFromPoint(x, y).find((el) => el !== host && !host.contains(el));
   for (let el = hit as HTMLElement | null; el && el !== document.documentElement; el = el.parentElement) {
+    if (el instanceof HTMLIFrameElement) {
+      const doc = frameDocument(el);
+      const se = doc?.scrollingElement as HTMLElement | null | undefined;
+      if (se && se.scrollHeight > se.clientHeight + 1) return { el: se, box: el };
+      continue;
+    }
     const oy = getComputedStyle(el).overflowY;
-    if ((oy === 'auto' || oy === 'scroll' || oy === 'overlay') && el.scrollHeight > el.clientHeight + 1) return el;
+    if ((oy === 'auto' || oy === 'scroll' || oy === 'overlay') && el.scrollHeight > el.clientHeight + 1) return { el, box: el };
   }
   return null;
+}
+
+/** 다른 사이트의 틀이면 브라우저가 안을 보지 못하게 막으므로 null */
+function frameDocument(f: HTMLIFrameElement): Document | null {
+  try {
+    return f.contentDocument;
+  } catch {
+    return null;
+  }
 }
 
 function showFailed(): void {

@@ -18,6 +18,8 @@ interface SavedStyle {
 
 /** 내부 스크롤 영역(CAP-07). null이면 문서 전체를 스크롤한다 */
 let target: HTMLElement | null = null;
+/** target이 페이지 안 틀(iframe)의 문서이면 그 iframe. 화면에서 차지한 자리를 잴 때 쓴다 */
+let frame: HTMLIFrameElement | null = null;
 let fixedEls: HTMLElement[] = [];
 let saved: SavedStyle[] = [];
 let originalScroll = { x: 0, y: 0, inner: 0 };
@@ -78,15 +80,31 @@ function documentHeight(): number {
   return Math.max(d.scrollHeight, b ? b.scrollHeight : 0, d.clientHeight);
 }
 
-/** 문서가 스크롤되지 않으면 화면에서 가장 큰 내부 스크롤 영역을 찾는다 */
+/** 다른 사이트의 틀이면 브라우저가 안을 보지 못하게 막으므로 null */
+function frameDocument(f: HTMLIFrameElement): Document | null {
+  try {
+    return f.contentDocument;
+  } catch {
+    return null;
+  }
+}
+
+/** 문서가 스크롤되지 않으면 화면에서 가장 큰 내부 스크롤 영역을 찾는다.
+ * 같은 사이트의 틀(iframe) 안 문서가 스크롤되는 페이지(네이버 블로그 등)도 후보다. 틀이면 iframe 요소를 돌려준다 */
 function findInnerScroller(viewportH: number): HTMLElement | null {
   let best: HTMLElement | null = null;
   let bestArea = 0;
   // body 자신이 스크롤 상자인 페이지도 있으므로 body도 후보에 넣는다
   for (const el of Array.from(document.querySelectorAll<HTMLElement>('body, body *'))) {
-    if (el.scrollHeight <= el.clientHeight + 1 || el.clientHeight < viewportH * 0.3) continue;
-    const oy = getComputedStyle(el).overflowY;
-    if (oy !== 'auto' && oy !== 'scroll' && oy !== 'overlay') continue;
+    if (el.clientHeight < viewportH * 0.3) continue;
+    if (el instanceof HTMLIFrameElement) {
+      const se = frameDocument(el)?.scrollingElement;
+      if (!se || se.scrollHeight <= se.clientHeight + 1) continue;
+    } else {
+      if (el.scrollHeight <= el.clientHeight + 1) continue;
+      const oy = getComputedStyle(el).overflowY;
+      if (oy !== 'auto' && oy !== 'scroll' && oy !== 'overlay') continue;
+    }
     const area = el.clientWidth * el.clientHeight;
     if (area > bestArea) {
       best = el;
@@ -99,7 +117,8 @@ function findInnerScroller(viewportH: number): HTMLElement | null {
 function collectFixed(scope: ParentNode, includeFixed: boolean): HTMLElement[] {
   const out: HTMLElement[] = [];
   for (const el of Array.from(scope.querySelectorAll<HTMLElement>('*'))) {
-    const pos = getComputedStyle(el).position;
+    // 틀(iframe) 안의 요소는 그 문서의 창으로 스타일을 읽는다
+    const pos = (el.ownerDocument.defaultView ?? window).getComputedStyle(el).position;
     if (pos === 'sticky' || (includeFixed && pos === 'fixed')) out.push(el);
   }
   return out;
@@ -161,8 +180,20 @@ async function prepare(area = false): Promise<PageMetrics> {
 
   const vh = window.innerHeight;
   const docH = documentHeight();
-  if (area) target = document.querySelector<HTMLElement>(`[${SCROLLER_ATTR}]`);
-  else if (docH <= vh + 1 || !windowCanScroll()) target = findInnerScroller(vh);
+  frame = null;
+  const picked = area
+    ? document.querySelector<HTMLElement>(`[${SCROLLER_ATTR}]`)
+    : docH <= vh + 1 || !windowCanScroll()
+      ? findInnerScroller(vh)
+      : null;
+  if (picked instanceof HTMLIFrameElement) {
+    // 틀이면 그 안 문서의 스크롤 요소를 스크롤한다
+    const se = (frameDocument(picked)?.scrollingElement as HTMLElement | null) ?? null;
+    frame = se ? picked : null;
+    target = se;
+  } else {
+    target = picked;
+  }
   applyCaptureStyles();
   await nextFrame();
 
@@ -170,12 +201,14 @@ async function prepare(area = false): Promise<PageMetrics> {
   let regionHeight = vh;
   let contentHeight = docH;
   if (target) {
-    const r = target.getBoundingClientRect();
-    regionTop = Math.max(0, Math.round(r.top + target.clientTop));
+    const boxEl = frame ?? target;
+    const r = boxEl.getBoundingClientRect();
+    regionTop = Math.max(0, Math.round(r.top + boxEl.clientTop));
     regionHeight = Math.min(target.clientHeight, vh - regionTop);
     contentHeight = target.scrollHeight;
     originalScroll.inner = target.scrollTop;
-    fixedEls = collectFixed(target, false);
+    // 틀 안 문서에서는 고정(fixed) 요소도 틀 안에서만 움직이지 않으므로 함께 숨긴다
+    fixedEls = collectFixed(target, !!frame);
   } else {
     contentHeight = documentHeight();
     fixedEls = collectFixed(document, true);
@@ -237,6 +270,7 @@ function restore(): void {
   if (target) target.scrollTop = originalScroll.inner;
   window.scrollTo(originalScroll.x, originalScroll.y);
   target = null;
+  frame = null;
   fixedEls = [];
 }
 
