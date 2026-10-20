@@ -21,6 +21,9 @@ export const PAGES = {
   '/framed-post.html': `<!doctype html><html><head><title>본문</title></head><body style="margin:0">
   ${Array.from({ length: 8 }, (_, i) => `<div style="height:500px;background:hsl(${i * 45},60%,50%)"></div>`).join('')}
   <div style="height:40px;background:#111"></div></body></html>`,
+  // 20,000px 긴 페이지 (Issue #7: 한 장 한도 32,000px 확인용). 구역마다 색이 달라 이음매를 볼 수 있다
+  '/tall.html': `<!doctype html><html><head><title>아주 긴 페이지</title></head><body style="margin:0">
+  ${Array.from({ length: 40 }, (_, i) => `<div style="height:500px;background:hsl(${(i * 37) % 360},55%,50%)"></div>`).join('')}</body></html>`,
   '/dark.html': `<!doctype html><html><head><title>어두운 페이지</title><style>
     html{background:#121212;color:#eee}body{margin:0;font:16px sans-serif}
     p{height:400px;margin:0;padding:20px}

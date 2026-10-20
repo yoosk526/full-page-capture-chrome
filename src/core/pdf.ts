@@ -11,6 +11,8 @@ export const PAPER_SIZE_PT: Record<Exclude<PdfPaper, 'full'>, [number, number]> 
 export const PAGE_MARGIN_PT = 36;
 /** "이미지 한 장" 용지에서 픽셀 → pt 비율 (96dpi 기준) */
 export const PX_TO_PT = 0.75;
+/** PDF 한 페이지의 가장 긴 변(pt). PDF 표준이 권하는 한계로, 넘으면 열리지 않거나 잘리는 프로그램이 있다 */
+export const PDF_MAX_PAGE_PT = 14400;
 /** 똑똑한 페이지 나누기가 줄 사이를 찾는 범위(한 페이지 높이에 대한 비율). TODO(미확인) */
 export const SMART_BREAK_WINDOW = 0.2;
 
@@ -172,7 +174,9 @@ export interface PageGeometry {
  */
 export function pageGeometry(paper: PdfPaper, imageW: number, imageH: number, orientation: PdfOrientation = 'portrait'): PageGeometry {
   if (paper === 'full') {
-    return { pageW: imageW * PX_TO_PT, pageH: imageH * PX_TO_PT, originX: 0, originY: 0, scale: PX_TO_PT, sliceH: imageH };
+    // 아주 긴 이미지(Issue #7: 최대 32,000px)는 페이지를 PDF 한계 안으로 줄인다. 그림 화질(픽셀)은 그대로다
+    const scale = Math.min(PX_TO_PT, PDF_MAX_PAGE_PT / imageH, PDF_MAX_PAGE_PT / imageW);
+    return { pageW: imageW * scale, pageH: imageH * scale, originX: 0, originY: 0, scale, sliceH: imageH };
   }
   const [shortSide, longSide] = PAPER_SIZE_PT[paper];
   const [pageW, pageH] = orientation === 'landscape' ? [longSide, shortSide] : [shortSide, longSide];
@@ -333,4 +337,24 @@ export function buildPdf(pages: PdfPageSpec[]): Uint8Array {
     o += c.length;
   }
   return out;
+}
+
+// ---- 미리보기 확대·쪽 고르기 (Issue #5) ----
+
+/** 미리보기 왼쪽 그림의 확대 한계와 한 번에 바뀌는 비율. TODO(추정) */
+export const STRIP_ZOOM_MIN = 0.5;
+export const STRIP_ZOOM_MAX = 4;
+export const STRIP_ZOOM_STEP = 1.25;
+
+/** 왼쪽 그림 확대(+1)·축소(-1) 한 단계. 한계를 넘지 않는다 */
+export function stepStripZoom(current: number, dir: 1 | -1): number {
+  const next = dir > 0 ? current * STRIP_ZOOM_STEP : current / STRIP_ZOOM_STEP;
+  return Math.min(STRIP_ZOOM_MAX, Math.max(STRIP_ZOOM_MIN, Math.round(next * 1000) / 1000));
+}
+
+/**
+ * 쪽 수가 바뀌었을 때 고른 상태를 맞춘다. 있던 쪽은 고른 상태를 그대로 두고, 새로 생긴 쪽은 고른 상태로 둔다.
+ */
+export function resizeSelection(prev: readonly boolean[], count: number): boolean[] {
+  return Array.from({ length: count }, (_, i) => (i < prev.length ? prev[i] : true));
 }

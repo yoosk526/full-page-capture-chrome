@@ -6,15 +6,15 @@ No account, no tracking, no network requests. Screenshots are stored **only on y
 
 ## Features
 
-- **Full-page capture**: auto-scrolls and stitches the whole page, including pages with sticky headers, inner scroll areas, same-site iframes and dark backgrounds. You can pause and resume.
+- **Full-page capture**: auto-scrolls and stitches the whole page, including pages with sticky headers, inner scroll areas, same-site iframes and dark backgrounds. You can pause and resume. Pages up to about 32,000 px tall become one image; longer pages are split, and you can choose where.
 - **Area capture**: drag to select part of a page. The page auto-scrolls when you drag to the top or bottom edge.
 - **Batch capture**: paste a list of URLs (up to 200) and capture each page automatically.
 - **Editor**:
   - Tools: rectangle, ellipse, arrow, line, text, highlighter, pen, blur, numbered badges and crop.
   - Undo/redo, multi-select, "reset all" and zoom (Cmd/Ctrl + mouse wheel).
-  - Pen and highlighter strokes are smoothed, but intentional sharp corners are kept.
+  - Pen and highlighter strokes are smoothed, but intentional sharp corners are kept. The highlighter has straight and freehand modes.
 - **Export**: PNG, JPG and PDF (A4, US Letter, US Legal or the full image as one page; portrait or landscape).
-  - Before saving a PDF, a preview shows where pages break. You can drag the breaks to adjust them.
+  - Before saving a PDF, a preview shows where pages break. You can drag the breaks, zoom in, view each page large and save only the pages you pick.
   - Empty space at the bottom of a page is filled with the image's background color.
   - You can also copy to the clipboard or print.
 - **My Screenshots**: a gallery of saved captures with search, multi-select, bulk save and delete.
@@ -23,7 +23,7 @@ No account, no tracking, no network requests. Screenshots are stored **only on y
 
 The extension is not on the Chrome Web Store, so you install it manually:
 
-1. Download [`release/hanjang-capture-v1.4.6.zip`](release/hanjang-capture-v1.4.6.zip) and unzip it.
+1. Download [`release/hanjang-capture-v1.5.0.zip`](release/hanjang-capture-v1.5.0.zip) and unzip it.
 2. Move the unzipped folder somewhere permanent, such as your Documents folder. Chrome loads the extension from this folder, so don't delete it.
 3. Open `chrome://extensions` in Chrome.
 4. Turn on **Developer mode** (top right).

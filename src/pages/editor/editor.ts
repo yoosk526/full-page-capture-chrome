@@ -30,7 +30,7 @@ import {
   type ToolStyle,
 } from '../../core/editorModel';
 import { History } from '../../core/history';
-import { constrainSquare, snapStraight } from '../../core/constrain';
+import { constrainSquare, extendStroke, snapStraight, type HighlighterMode } from '../../core/constrain';
 import { smoothStroke } from '../../core/smooth';
 import type { FileFormat } from '../../core/settings';
 import { resolveShortcut, type EditorAction, type ToolId } from '../../core/shortcuts';
@@ -73,6 +73,8 @@ const extraSel = new Set<string>();
 let zoom = EDITOR_INITIAL_ZOOM;
 /** 설정 "펜 선 부드럽게 보정" */
 let smoothStrokes = true;
+/** 형광펜 직선 / 자유 (Issue #6) */
+let highlighterMode: HighlighterMode = 'straight';
 let zoomBeforeCrop = zoom;
 let cropRect: Rect | null = null;
 let objectClipboard: EditorObject[] = [];
@@ -211,6 +213,8 @@ function screenRect(r: Rect): Rect {
 
 function drawSelection(): void {
   if (editingText) return;
+  // 그리는 동안에는 선택 상자를 숨겨 그리는 부분이 잘 보이게 한다. 다 그리면 나타난다 (Issue #6)
+  if (drag && (drag.kind === 'draw' || drag.kind === 'create')) return;
   const ids = selectedIds();
   if (ids.length > 1) {
     // 여러 개를 골랐을 때는 테두리만 보여 준다(크기 조절은 하나만 골랐을 때)
@@ -354,6 +358,7 @@ function setTool(next: ToolId): void {
     $('#crop-bar').hidden = false;
   }
   document.querySelectorAll<HTMLElement>('#toolbar [data-tool]').forEach((b) => b.classList.toggle('active', b.dataset.tool === tool));
+  updateFlyout();
   canvas.style.cursor = tool === 'select' ? 'default' : 'crosshair';
   refresh();
 }
@@ -380,6 +385,18 @@ function exitCrop(apply: boolean): void {
   }
 }
 
+/** 형광펜 옆 직선 / 자유 버튼의 표시와 위치 */
+function updateFlyout(): void {
+  const fly = document.getElementById('hl-modes');
+  if (!fly) return;
+  fly.hidden = tool !== 'highlighter';
+  if (fly.hidden) return;
+  const r = $('#toolbar [data-tool="highlighter"]').getBoundingClientRect();
+  fly.style.left = `${r.right + 6}px`;
+  fly.style.top = `${r.top + r.height / 2}px`;
+  fly.querySelectorAll<HTMLElement>('[data-mode]').forEach((b) => b.classList.toggle('active', b.dataset.mode === highlighterMode));
+}
+
 function buildToolbar(): void {
   const bar = $('#toolbar');
   for (const id of TOOL_ORDER) {
@@ -396,6 +413,28 @@ function buildToolbar(): void {
     b.addEventListener('click', () => setTool(id));
     bar.appendChild(b);
   }
+  // 형광펜을 고르면 옆에 직선 / 자유 버튼이 나온다 (Issue #6)
+  const fly = document.createElement('div');
+  fly.className = 'tool-flyout';
+  fly.id = 'hl-modes';
+  fly.hidden = true;
+  for (const mode of ['straight', 'free'] as const) {
+    const m = document.createElement('button');
+    m.className = 'icon-btn';
+    m.dataset.mode = mode;
+    const label = mode === 'straight' ? t.editor.hlStraight : t.editor.hlFree;
+    m.innerHTML = icons[mode === 'straight' ? 'hlStraight' : 'hlFree'];
+    m.title = label;
+    m.setAttribute('aria-label', label);
+    m.addEventListener('click', () => {
+      highlighterMode = mode;
+      void saveSettings({ highlighterMode: mode });
+      updateFlyout();
+    });
+    fly.appendChild(m);
+  }
+  document.body.appendChild(fly);
+  window.addEventListener('resize', updateFlyout);
   bar.insertAdjacentHTML('beforeend', '<div class="spacer"></div>');
   const report = document.createElement('button');
   report.className = 'icon-btn';
@@ -569,8 +608,9 @@ canvas.addEventListener('pointermove', (e) => {
     case 'draw': {
       const o = objectById(drag.id);
       if (o && 'points' in o) {
-        const p = o.points;
-        if (Math.hypot(x - p[p.length - 2], y - p[p.length - 1]) >= 1.5 / zoom) draft = updateObject(draft ?? base, drag.id, { points: [...p, x, y] });
+        const mode = o.type === 'highlighter' ? highlighterMode : 'free';
+        const points = extendStroke(o.points, x, y, mode, e.shiftKey, 1.5 / zoom);
+        if (points) draft = updateObject(draft ?? base, drag.id, { points });
       }
       break;
     }
@@ -1202,6 +1242,7 @@ async function main(): Promise<void> {
   const settings = await loadSettings();
   fileFormat = settings.fileFormat;
   smoothStrokes = settings.smoothStrokes;
+  highlighterMode = settings.highlighterMode;
   $('#save-label').textContent = fileFormat === 'pdf' ? t.result.savePdf : t.result.saveAs(FORMAT_LABEL[fileFormat]);
   $('#m-png').textContent = t.result.saveAs('PNG');
   $('#m-jpg').textContent = t.result.saveAs('JPG');

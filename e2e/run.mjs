@@ -173,6 +173,65 @@ async function editorFlow(context, extId, id) {
     await ed.keyboard.press(process.platform === 'darwin' ? 'Meta+z' : 'Control+z');
   }
 
+  // 그리는 동안에는 선택 상자가 안 보이고, 다 그리면 보인다. 형광펜은 직선 / 자유를 고를 수 있다 (Issue #6)
+  {
+    const lastObj = () =>
+      ed.evaluate(async (id) => {
+        await new Promise((r) => setTimeout(r, 1200));
+        const db = await new Promise((r) => { const q = indexedDB.open('hanjang-capture'); q.onsuccess = () => r(q.result); });
+        const shot = await new Promise((r) => { const q = db.transaction('shots').objectStore('shots').get(id); q.onsuccess = () => r(q.result); });
+        return shot.doc.objects.at(-1);
+      }, id);
+    // 편집 화면 캔버스에서 선택 상자 색(#2b6cde) 점 수를 센다
+    const blueDots = () =>
+      ed.evaluate(() => {
+        const c = document.getElementById('view');
+        const d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data;
+        let n = 0;
+        for (let i = 0; i < d.length; i += 4) if (Math.abs(d[i] - 43) < 6 && Math.abs(d[i + 1] - 108) < 6 && Math.abs(d[i + 2] - 222) < 6) n++;
+        return n;
+      });
+    await ed.keyboard.press('Escape');
+    const before = await blueDots();
+    await ed.keyboard.press('p');
+    const [px0, py0] = at(0.25, 0.3);
+    await ed.mouse.move(px0, py0);
+    await ed.mouse.down();
+    for (let k = 1; k <= 10; k++) await ed.mouse.move(px0 + k * 12, py0 + (k % 2 ? 10 : 0));
+    await ed.waitForTimeout(100);
+    const during = await blueDots();
+    await ed.mouse.up();
+    await ed.waitForTimeout(100);
+    const after = await blueDots();
+    check('편집기: 펜으로 그리는 동안 선택 상자가 안 보이고, 다 그리면 보임', during <= before && after > before + 20, `전 ${before}, 그리는 중 ${during}, 다 그린 뒤 ${after}`);
+    await ed.keyboard.press(process.platform === 'darwin' ? 'Meta+z' : 'Control+z');
+
+    await ed.locator('#toolbar [data-tool="highlighter"]').click();
+    const flyShown = await ed.locator('#hl-modes').isVisible();
+    const activeMode = await ed.locator('#hl-modes .active').getAttribute('data-mode');
+    check('편집기: 형광펜을 고르면 옆에 직선/자유 버튼이 나오고 처음은 직선', flyShown && activeMode === 'straight', `${flyShown} ${activeMode}`);
+    const drawZig = async () => {
+      const [hx, hy] = at(0.3, 0.5);
+      await ed.mouse.move(hx, hy);
+      await ed.mouse.down();
+      for (let k = 1; k <= 10; k++) await ed.mouse.move(hx + k * 15, hy + (k % 2 ? 12 : 0));
+      await ed.mouse.up();
+    };
+    await drawZig();
+    const straight = await lastObj();
+    check('편집기: 형광펜 직선 → 끈 경로와 상관없이 점 2개(곧은 선)', straight.type === 'highlighter' && straight.points.length === 4, `점 ${straight.points.length / 2}개`);
+    await ed.keyboard.press(process.platform === 'darwin' ? 'Meta+z' : 'Control+z');
+    await ed.locator('#hl-modes [data-mode="free"]').click();
+    await drawZig();
+    const free = await lastObj();
+    check('편집기: 형광펜 자유 → 지나간 대로 여러 점', free.type === 'highlighter' && free.points.length > 8, `점 ${free.points.length / 2}개`);
+    await ed.keyboard.press(process.platform === 'darwin' ? 'Meta+z' : 'Control+z');
+    await ed.locator('#hl-modes [data-mode="straight"]').click();
+    await ed.screenshot({ path: join(OUT, 'editor-highlighter-modes.png') });
+    await ed.keyboard.press('Escape');
+    check('편집기: 다른 도구로 바꾸면 직선/자유 버튼이 사라짐', await ed.locator('#hl-modes').isHidden());
+  }
+
   // Shift로 목록에서 두 개 고르기 → 함께 지우기 → 실행 취소
   {
     const n0 = await ed.locator('#objects-list li').count();
@@ -346,6 +405,7 @@ async function exportFlow(context, worker, extId, id) {
       return null;
     }, ext);
   const magic = { png: '89504e47', jpg: 'ffd8ff', pdf: '25504446' };
+  let pdfPicked = -1;
   for (const fmt of ['png', 'jpg', 'pdf']) {
     await page.locator('#save-more').click();
     await page.locator(`#save-menu button[data-format="${fmt}"]`).click();
@@ -371,6 +431,51 @@ async function exportFlow(context, worker, extId, id) {
       const mergeOk = await page.locator('#pdf-preview .pdfp-merge').first().isDisabled();
       check('PDF 미리보기: 합치면 한 쪽에 안 들어가는 선은 합치기 버튼이 꺼짐', mergeOk);
       await page.screenshot({ path: join(OUT, 'pdf-preview-moved.png') });
+
+      // 왼쪽 그림 확대: 버튼, Ctrl+휠 (Issue #5)
+      const stripW = () => page.locator('#pdfp-strip').evaluate((el) => el.getBoundingClientRect().width);
+      const w0 = await stripW();
+      await page.locator('#pdfp-zoom-in').click();
+      const w1 = await stripW();
+      const zl = await page.locator('#pdfp-zoom-label').textContent();
+      const sw = await page.locator('#pdfp-strip-wrap').boundingBox();
+      await page.mouse.move(sw.x + sw.width / 2, sw.y + 100);
+      await page.keyboard.down('Control');
+      await page.mouse.wheel(0, -100);
+      await page.keyboard.up('Control');
+      await page.waitForTimeout(100);
+      const w2 = await stripW();
+      check('PDF 미리보기: 왼쪽 그림 확대 버튼·Ctrl+휠로 커짐', w1 > w0 * 1.2 && zl === '125%' && w2 > w1 * 1.2, `${w0} → ${w1} (${zl}) → ${w2}`);
+      // 칸 사이 경계를 끌어 너비 조절
+      const left0 = (await page.locator('#pdfp-left').boundingBox()).width;
+      const sp = await page.locator('#pdfp-splitter').boundingBox();
+      await page.mouse.move(sp.x + sp.width / 2, sp.y + 200);
+      await page.mouse.down();
+      await page.mouse.move(sp.x + 120, sp.y + 200, { steps: 4 });
+      await page.mouse.up();
+      const left1 = (await page.locator('#pdfp-left').boundingBox()).width;
+      check('PDF 미리보기: 칸 사이 경계를 끌면 왼쪽 칸이 넓어짐', left1 > left0 + 80, `${left0} → ${left1}`);
+      // 쪽 위에 마우스를 올리면 "크게 보기" → 크게 보기 창, →로 다음 쪽, Esc는 그 창만 닫음
+      const card1 = page.locator('#pdf-preview .pdfp-card').first();
+      await card1.hover();
+      const viewBtn = card1.locator('.pdfp-card-view');
+      const viewVisible = await viewBtn.isVisible();
+      await viewBtn.click();
+      const t1 = await page.locator('#pdfp-viewer-title').textContent();
+      await page.keyboard.press('ArrowRight');
+      const t2 = await page.locator('#pdfp-viewer-title').textContent();
+      await page.screenshot({ path: join(OUT, 'pdf-preview-viewer.png') });
+      await page.keyboard.press('Escape');
+      const viewerClosed = await page.locator('#pdfp-viewer').isHidden();
+      const dialogOpen = (await page.locator('#pdf-preview').count()) === 1;
+      check('PDF 미리보기: 쪽 위 "크게 보기" → 크게 보기 창, →로 다음 쪽, Esc는 크게 보기만 닫음', viewVisible && t1.startsWith('1쪽') && t2.startsWith('2쪽') && viewerClosed && dialogOpen, `${viewVisible} ${t1} → ${t2}, 닫힘 ${viewerClosed}, 미리보기 ${dialogOpen}`);
+      // 쪽을 누르면 저장할 쪽에서 빠짐
+      const nCards = await page.locator('#pdf-preview .pdfp-card').count();
+      await page.locator('#pdf-preview .pdfp-card').last().click();
+      const selText = await page.locator('#pdfp-sel-count').textContent();
+      const saveText = await page.locator('#pdfp-save').textContent();
+      check('PDF 미리보기: 쪽을 누르면 저장에서 빠지고 버튼에 쪽 수 표시', selText === `${nCards}쪽 중 ${nCards - 1}쪽 저장` && saveText === `${nCards - 1}쪽 PDF로 저장`, `${selText} / ${saveText}`);
+      await page.screenshot({ path: join(OUT, 'pdf-preview-pick.png') });
       // Esc로 취소하면 저장되지 않는다
       const before = await worker.evaluate(async () => (await chrome.downloads.search({})).length);
       await page.keyboard.press('Escape');
@@ -380,6 +485,9 @@ async function exportFlow(context, worker, extId, id) {
       await page.locator('#save-more').click();
       await page.locator('#save-menu button[data-format="pdf"]').click();
       await page.waitForSelector('#pdf-preview .pdfp-card');
+      // 2쪽을 빼고 저장 → 그만큼 적은 쪽의 PDF (Issue #5). 링크가 있는 1쪽과 여백이 남는 마지막 쪽은 남긴다
+      pdfPicked = (await page.locator('#pdf-preview .pdfp-card').count()) - 1;
+      await page.locator('#pdf-preview .pdfp-card').nth(1).click();
       await page.locator('#pdfp-save').click();
     }
     const d = await waitDownload(fmt);
@@ -391,6 +499,7 @@ async function exportFlow(context, worker, extId, id) {
       const text = readFileSync(d.filename).toString('latin1');
       const count = Number(text.match(/\/Count (\d+)/)?.[1]);
       check('저장: A4 PDF는 여러 페이지 + 링크 포함', count >= 2 && text.includes('/URI (https://example.com/link)'), `페이지 ${count}`);
+      check('저장: 미리보기에서 고른 쪽만 PDF에 들어감', count === pdfPicked, `${count}쪽 (고른 쪽 ${pdfPicked})`);
       // 마지막 쪽은 그림이 짧아 남는 여백을 그림 바탕색(마지막 구역 색, 흰색 아님)으로 채운다
       const fills = [...text.matchAll(/([\d.]+) ([\d.]+) ([\d.]+) rg [\d.]+ [\d.]+ [\d.]+ [\d.]+ re f/g)].map((m) => m.slice(1, 4).map(Number));
       const last = fills.at(-1);
@@ -418,6 +527,133 @@ async function exportFlow(context, worker, extId, id) {
   check('복사: 클립보드 복사 결과 알림', toastText.includes('복사'), toastText);
   await page.close();
   await worker.evaluate(() => chrome.storage.local.remove('settings'));
+}
+
+/** 긴 캡처 (Issue #7): 한 장 한도를 올렸고, 그래도 나뉘면 결과 화면에서 나눌 곳을 고른다 */
+async function longFlow(context, worker, extId, origin) {
+  const page = context.pages()[0];
+  await page.goto(origin + '/tall.html');
+  await page.bringToFront();
+  const dpr = await page.evaluate(() => devicePixelRatio);
+  const tab = await worker.evaluate(async (url) => {
+    const [t] = await chrome.tabs.query({ url });
+    return { id: t.id, windowId: t.windowId };
+  }, origin + '/tall.html');
+  const driverPromise = context.waitForEvent('page');
+  await worker.evaluate((url) => chrome.windows.create({ url, focused: false }), `chrome-extension://${extId}/result.html?id=driver`);
+  const driver = await driverPromise;
+  await driver.waitForLoadState();
+  const resultPromise = context.waitForEvent('page', { predicate: (p) => p.url().includes('result.html?id=') && !p.url().includes('driver'), timeout: 180000 });
+  await driver.evaluate(
+    (tab) =>
+      new Promise((done) => {
+        const port = chrome.runtime.connect({ name: 'capture-popup' });
+        port.onMessage.addListener((m) => (m.kind === 'done' || m.kind === 'error') && done(m));
+        port.postMessage({ kind: 'open', tabId: tab.id, windowId: tab.windowId });
+      }),
+    tab,
+  );
+  const result = await resultPromise.catch(() => null);
+  const group = result
+    ? await result.evaluate(async () => {
+        const id = new URLSearchParams(location.search).get('id');
+        const db = await new Promise((r) => { const q = indexedDB.open('hanjang-capture'); q.onsuccess = () => r(q.result); });
+        const all = await new Promise((r) => { const q = db.transaction('shots').objectStore('shots').getAll(); q.onsuccess = () => r(q.result); });
+        const me = all.find((s) => s.id === id);
+        return all.filter((s) => s.groupId === me.groupId).map((s) => s.height);
+      })
+    : [];
+  const total = group.reduce((a, b) => a + b, 0);
+  // 화면 배율 1배: 20,000px → 이전 한도(16,384)는 넘지만 새 한도(32,000) 안이라 한 장. 2배: 40,000px → 2장
+  check(`긴 캡처(20,000 CSS px, 배율 ${dpr}): 새 한도 32,000px 안이면 한 장, 넘으면 나뉨`, total >= 20000 * dpr - 2 && group.length === (dpr === 1 ? 1 : 2) && group.every((h) => h <= 32000), `장마다 높이 ${group.join(', ')}`);
+  if (result) {
+    if (group.length > 1) {
+      // 막 찍은 긴 캡처는 결과 화면에서 나눌 곳 고르기 창이 바로 뜬다
+      const shown = await result.waitForSelector('#split-dialog', { timeout: 15000 }).then(() => true, () => false);
+      check('긴 캡처: 여러 장으로 나뉘면 결과 화면에서 나눌 곳 고르기 창이 바로 뜸', shown);
+      await result.screenshot({ path: join(OUT, 'split-dialog-capture.png') });
+    }
+    await result.close();
+  }
+  await driver.close();
+
+  // 나뉜 촬영을 직접 만들어 나눌 곳 고르기를 시험한다 (두 장: 1500px + 1000px)
+  const ext = await context.newPage();
+  await ext.goto(`chrome-extension://${extId}/gallery.html`);
+  const firstId = await ext.evaluate(async () => {
+    const make = async (h, color) => {
+      const c = new OffscreenCanvas(600, h);
+      const x = c.getContext('2d');
+      x.fillStyle = color;
+      x.fillRect(0, 0, 600, h);
+      return c.convertToBlob({ type: 'image/png' });
+    };
+    const groupId = crypto.randomUUID();
+    const base = { groupId, partCount: 2, createdAt: Date.now(), url: 'https://example.com/long', title: '나눔 시험', width: 600, links: [], doc: { version: 1, crop: null, objects: [], badgeCounter: 0, stamp: { position: 'none', dateFormat: 'date' } } };
+    const parts = [
+      { ...base, id: crypto.randomUUID(), partIndex: 0, height: 1500, image: await make(1500, '#c62828'), thumb: await make(300, '#c62828'), links: [{ x: 10, y: 1300, w: 100, h: 200, href: 'https://example.com/a' }] },
+      { ...base, id: crypto.randomUUID(), partIndex: 1, height: 1000, image: await make(1000, '#1565c0'), thumb: await make(300, '#1565c0') },
+    ];
+    const db = await new Promise((r) => { const q = indexedDB.open('hanjang-capture'); q.onsuccess = () => r(q.result); });
+    await new Promise((r) => { const t = db.transaction('shots', 'readwrite'); for (const p of parts) t.objectStore('shots').put(p); t.oncomplete = r; });
+    return parts[0].id;
+  });
+  await ext.goto(`chrome-extension://${extId}/result.html?id=${firstId}`);
+  const auto = await ext.waitForSelector('#split-dialog', { timeout: 10000 }).then(() => true, () => false);
+  const count0 = auto ? await ext.locator('#split-count').textContent() : '';
+  check('나눌 곳 고르기: 나뉜 촬영을 처음 열면 창이 바로 뜨고 장 수 표시', auto && count0 === '2장', count0);
+  // 선을 위로 끌어 1장을 짧게 → 이렇게 나누기
+  const line = ext.locator('#split-dialog .pdfp-break').first();
+  await line.scrollIntoViewIfNeeded();
+  const lb = await line.boundingBox();
+  await ext.mouse.move(lb.x + 80, lb.y + lb.height / 2);
+  await ext.mouse.down();
+  await ext.mouse.move(lb.x + 80, lb.y - 60, { steps: 5 });
+  await ext.mouse.up();
+  await ext.screenshot({ path: join(OUT, 'split-dialog.png') });
+  const navigated = ext.waitForURL((u) => u.searchParams.get('id') !== firstId, { timeout: 15000 });
+  await ext.locator('#split-apply').click();
+  await navigated.catch(() => undefined);
+  const after = await ext.evaluate(async () => {
+    const id = new URLSearchParams(location.search).get('id');
+    const db = await new Promise((r) => { const q = indexedDB.open('hanjang-capture'); q.onsuccess = () => r(q.result); });
+    const all = await new Promise((r) => { const q = db.transaction('shots').objectStore('shots').getAll(); q.onsuccess = () => r(q.result); });
+    const me = all.find((s) => s.id === id);
+    const g = all.filter((s) => s.groupId === me.groupId).sort((a, b) => a.partIndex - b.partIndex);
+    const oldLeft = all.filter((s) => s.title === '나눔 시험' && s.groupId !== me.groupId).length;
+    // 새 2장의 맨 아래 줄 색: 1장은 빨강, 2장 맨 위는 빨강(옮긴 만큼), 맨 아래는 파랑이어야 한다
+    const px = async (blob, y) => {
+      const b = await createImageBitmap(blob);
+      const c = new OffscreenCanvas(1, 1);
+      c.getContext('2d').drawImage(b, 10, y, 1, 1, 0, 0, 1, 1);
+      return Array.from(c.getContext('2d').getImageData(0, 0, 1, 1).data.slice(0, 3));
+    };
+    return {
+      heights: g.map((s) => s.height),
+      top2: await px(g[1].image, 0),
+      bottom2: await px(g[1].image, g[1].height - 1),
+      links: g.map((s) => s.links.map((l) => [l.y, l.h])),
+      oldLeft,
+      dialog: !!document.getElementById('split-dialog'),
+    };
+  });
+  const [h1, h2] = after.heights;
+  check(
+    '나눌 곳 고르기: 선을 위로 옮겨 나누면 1장이 짧아지고 2장이 그만큼 길어짐(전체 2,500px 그대로, 이음매 색 맞음, 원래 장은 지워짐)',
+    after.heights.length === 2 && h1 < 1500 && h1 + h2 === 2500 && after.top2[0] > 150 && after.bottom2[2] > 150 && after.oldLeft === 0 && !after.dialog,
+    JSON.stringify(after),
+  );
+  check('나눌 곳 고르기: 장 경계에 걸친 링크도 새 장에 맞게 나뉨', after.links[0].length === 1 && after.links[1].length === 1 && after.links[0][0][0] + after.links[0][0][1] === h1 && after.links[1][0][0] === 0 && after.links[0][0][1] + after.links[1][0][1] === 200, JSON.stringify(after.links));
+  // 다시 열어도 묻지 않고, 버튼으로는 열 수 있다
+  await ext.reload();
+  await ext.waitForSelector('#split-btn');
+  await ext.waitForTimeout(500);
+  const askedAgain = (await ext.locator('#split-dialog').count()) > 0;
+  await ext.locator('#split-btn').click();
+  const viaButton = await ext.waitForSelector('#split-dialog', { timeout: 5000 }).then(() => true, () => false);
+  await ext.locator('#split-keep').click();
+  check('나눌 곳 고르기: 한 번 고른 뒤에는 다시 묻지 않고, "나눌 곳 고르기" 버튼으로 다시 열 수 있음', !askedAgain && viaButton, `다시 뜸 ${askedAgain}, 버튼 ${viaButton}`);
+  await ext.close();
 }
 
 /** 설정 화면: 바꾸면 바로 저장, 잘못된 폴더 이름은 안내, 크롬 단축키 표시 */
@@ -499,7 +735,15 @@ async function autoDownloadFlow(context, worker, extId, origin, path = '/dark.ht
   );
   await driver.waitForTimeout(1500);
   context.off('page', onPage);
-  const items = await worker.evaluate(async () => (await chrome.downloads.search({ orderBy: ['-startTime'] })).map((d) => ({ state: d.state, size: d.fileSize, error: d.error })));
+  // 큰 파일(한 장 100MB 이상)은 저장에 시간이 걸리므로 다 끝날 때까지 기다린다
+  const items = await worker.evaluate(async (before) => {
+    for (let k = 0; k < 150; k++) {
+      const list = (await chrome.downloads.search({ orderBy: ['-startTime'] })).map((d) => ({ state: d.state, size: d.fileSize, error: d.error }));
+      if (list.slice(0, list.length - before).every((d) => d.state !== 'in_progress')) return list;
+      await new Promise((r) => setTimeout(r, 200));
+    }
+    return (await chrome.downloads.search({ orderBy: ['-startTime'] })).map((d) => ({ state: d.state, size: d.fileSize, error: d.error }));
+  }, before);
   // 아주 긴 페이지는 여러 장으로 나뉘어(CAP-08) 장마다 파일이 하나씩 생긴다
   const parts = await driver.evaluate(async () => {
     const db = await new Promise((r) => { const q = indexedDB.open('hanjang-capture'); q.onsuccess = () => r(q.result); });
@@ -975,6 +1219,7 @@ async function main() {
     await autoDownloadFlow(context, worker, extId, origin);
     await autoDownloadFlow(context, worker, extId, origin, '/noise.html');
     await galleryFlow(context, worker, extId);
+    await longFlow(context, worker, extId, origin);
 
     // 실제 툴바 팝업 (CAP-01, PR #1): 고르는 창 → 페이지 전체 / 페이지 일부
     await popupFlow(context, worker, origin);

@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import {
   PAGE_MIN_PX,
+  PDF_MAX_PAGE_PT,
+  PX_TO_PT,
+  STRIP_ZOOM_MAX,
+  STRIP_ZOOM_MIN,
+  resizeSelection,
+  stepStripZoom,
   SMART_BREAK_WINDOW,
   blankRows,
   buildPdf,
@@ -228,5 +234,50 @@ describe('buildPdf: 여백 채우기 (PR #1 세 번째 요청)', () => {
     const m = text.match(/<< \/Length (\d+) >>\nstream\n([\s\S]*?)\nendstream/)!;
     expect(m[2].length).toBe(Number(m[1]));
     expect(m[2].startsWith('1 0 0 rg 36 36 540 420 re f q')).toBe(true);
+  });
+});
+
+describe('stepStripZoom: PDF 미리보기 그림 확대 (Issue #5)', () => {
+  // 목적: 확대 버튼을 누를수록 한없이 커져 화면이 멈추는 결함을 막는다
+  it('[BVA] TC-SZOOM-01 최대에서 확대 → 최대 그대로', () => {
+    expect(stepStripZoom(STRIP_ZOOM_MAX, 1)).toBe(STRIP_ZOOM_MAX);
+  });
+
+  // 목적: 최대 바로 아래에서 확대할 때 최대를 넘어서는 결함을 막는다
+  it('[BVA] TC-SZOOM-02 최대/1.1에서 확대 → 최대로 맞춰짐', () => {
+    expect(stepStripZoom(STRIP_ZOOM_MAX / 1.1, 1)).toBe(STRIP_ZOOM_MAX);
+  });
+
+  // 목적: 축소를 계속 눌러 그림이 사라질 만큼 작아지는 결함을 막는다
+  it('[BVA] TC-SZOOM-03 최소에서 축소 → 최소 그대로', () => {
+    expect(stepStripZoom(STRIP_ZOOM_MIN, -1)).toBe(STRIP_ZOOM_MIN);
+  });
+});
+
+describe('resizeSelection: 저장할 쪽 고르기 (Issue #5)', () => {
+  // 목적: 나누는 곳을 옮겨 쪽이 늘었을 때 새 쪽이 빠진 채 저장되는 결함을 막는다
+  it('[BVA] TC-PSEL-01 3쪽(2쪽 뺌) → 4쪽: 빼 둔 쪽은 그대로, 새 4쪽은 골라짐', () => {
+    expect(resizeSelection([true, false, true], 4)).toEqual([true, false, true, true]);
+  });
+
+  // 목적: 쪽이 줄었을 때 없는 쪽의 선택이 남아 다른 쪽이 잘못 저장되는 결함을 막는다
+  it('[BVA] TC-PSEL-02 3쪽 → 2쪽: 앞의 두 쪽 상태만 남음', () => {
+    expect(resizeSelection([true, false, true], 2)).toEqual([true, false]);
+  });
+});
+
+describe('pageGeometry: 아주 긴 이미지의 "전체 이미지" PDF (Issue #7)', () => {
+  // 목적: 페이지 높이가 PDF 한계와 같을 때 쓸데없이 줄여 그림이 작게 보이는 결함을 막는다
+  it('[BVA] TC-PAPER-05 높이 x 0.75 = 한계(19,200px) → 줄이지 않음', () => {
+    const g = pageGeometry('full', 1000, PDF_MAX_PAGE_PT / PX_TO_PT);
+    expect(g.scale).toBe(PX_TO_PT);
+    expect(g.pageH).toBe(PDF_MAX_PAGE_PT);
+  });
+
+  // 목적: 한계를 넘는 긴 페이지를 그대로 만들어 PDF가 열리지 않거나 잘리는 결함을 막는다
+  it('[BVA] TC-PAPER-06 높이 = 한계 + 1px → 페이지 높이를 한계에 맞춤', () => {
+    const g = pageGeometry('full', 1000, PDF_MAX_PAGE_PT / PX_TO_PT + 1);
+    expect(g.pageH).toBeCloseTo(PDF_MAX_PAGE_PT, 6);
+    expect(g.scale).toBeLessThan(PX_TO_PT);
   });
 });

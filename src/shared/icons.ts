@@ -52,6 +52,9 @@ export const icons = {
   highlighter: svg('<path d="M14.5 3.5 20.5 9.5 12 18H8.5L6 15.5V12z"/><path d="M8.5 18 6.5 20H3l3-5"/><path d="M10.5 8l5.5 5.5"/>'),
   blur: svg('<path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z"/><circle cx="12" cy="12" r="3"/><path d="M4 20 20 4"/>'),
   badge: svg('<circle cx="12" cy="12" r="9"/><path d="M11 9l2-1v8"/>'),
+  // 형광펜 직선 / 자유 그리기 (Issue #6)
+  hlStraight: svg('<path d="M4 19 20 5" stroke-width="3"/>'),
+  hlFree: svg('<path d="M3 15c2.5-5 4.5-5 6 0s3.5 5 6 0 3.5-5 6-1" stroke-width="2.6"/>'),
   pen: svg('<path d="M8 3h8l3.2 7L12 21 4.8 10z"/><path d="M12 21v-8.2"/><circle cx="12" cy="10.5" r="1.6"/>'),
   brush: svg('<path d="M14 4l6 6-7 7-6-6z"/><path d="M7 11c-3 0-4 3-4 6v3h3c3 0 6-1 6-4"/>'),
   lock: svg('<rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/>'),

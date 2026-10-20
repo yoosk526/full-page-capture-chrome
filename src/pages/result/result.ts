@@ -2,7 +2,10 @@
 import { clampZoom, fitZoom, formatZoom, zoomIn, zoomOut } from '../../core/zoom';
 import { outputLayout } from '../../core/stamp';
 import type { FileFormat } from '../../core/settings';
-import { deleteShots, getShot, listGroup } from '../../shared/db';
+import { deleteShots, getShot, listGroup, putShot } from '../../shared/db';
+import { hasEdits } from '../../core/editorModel';
+import { icons } from '../../shared/icons';
+import { openSplitDialog } from './splitDialog';
 import { applyI18n, t } from '../../shared/i18n';
 import { loadSettings } from '../../shared/settingsStore';
 import type { ShotRecord } from '../../shared/types';
@@ -22,6 +25,8 @@ let zoom = 1;
 let objectUrl = '';
 let loadedOnce = false;
 let outSize = { w: 1, h: 1 };
+/** 이 화면에서 나눌 곳 고르기 창을 이미 띄웠는지 */
+let splitAsked = false;
 
 const img = $('#preview') as HTMLImageElement;
 const viewport = $('#viewport');
@@ -43,9 +48,21 @@ function fit(): number {
   return fitZoom(outSize.w, outSize.h, viewport.clientWidth - padX, viewport.clientHeight - padY);
 }
 
+/** 나눌 곳 고르기 창을 열고, 다시 나눴으면 새 첫 장으로 옮겨 간다 (Issue #7) */
+async function chooseSplit(group: ShotRecord[]): Promise<void> {
+  const next = await openSplitDialog(group);
+  if (next) {
+    location.replace(`result.html?id=${next[0].id}`);
+    return;
+  }
+  // 이대로 두기: 다음에 열 때 다시 묻지 않는다 (버튼으로는 언제든 열 수 있다)
+  for (const s of group) if (!s.splitChosen) await putShot({ ...s, splitChosen: true });
+}
+
 async function renderParts(current: ShotRecord): Promise<void> {
   if (current.partCount <= 1) return;
   const group = await listGroup(current.groupId);
+  const edited = group.some((s) => hasEdits(s.doc));
   const box = $('#parts');
   box.hidden = false;
   box.title = t.result.partsNotice(current.partCount);
@@ -56,6 +73,19 @@ async function renderParts(current: ShotRecord): Promise<void> {
     b.textContent = t.result.part(p.partIndex + 1, p.partCount);
     b.addEventListener('click', () => location.replace(`result.html?id=${p.id}`));
     box.appendChild(b);
+  }
+  const split = document.createElement('button');
+  split.className = 'btn split-btn';
+  split.id = 'split-btn';
+  split.innerHTML = `${icons.layers}<span>${t.result.splitBtn}</span>`;
+  split.disabled = edited;
+  split.title = edited ? t.result.splitEdited : t.result.splitBtn;
+  split.addEventListener('click', () => void listGroup(current.groupId).then(chooseSplit));
+  box.appendChild(split);
+  // 막 찍은 긴 캡처는 결과 화면이 열리자마자 나눌 곳을 고르게 한다
+  if (!edited && !group.some((s) => s.splitChosen) && !splitAsked) {
+    splitAsked = true;
+    await chooseSplit(group);
   }
 }
 
