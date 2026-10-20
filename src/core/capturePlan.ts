@@ -15,6 +15,9 @@ export const MAX_PART_HEIGHT = 32000;
 /** 캔버스 한 장의 최대 픽셀 수. Chrome 한계(268,435,456)보다 작게 잡아 띠를 붙일 여유를 둔다. */
 export const MAX_PART_AREA = 200_000_000;
 
+/** 나눌 곳을 고를 때 한 장의 최소 높이(device px). 너무 얇은 장이 생기지 않게 한다. TODO(추정) */
+export const SPLIT_MIN_PX = 200;
+
 /** 이 폭의 이미지 한 장에 담을 수 있는 최대 높이(device px) */
 export function maxPartHeight(width: number): number {
   return Math.min(MAX_PART_HEIGHT, Math.floor(MAX_PART_AREA / width));

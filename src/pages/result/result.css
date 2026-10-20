@@ -109,6 +109,10 @@ h1 {
   font-size: 14px;
 }
 
+.parts .split-btn {
+  margin-left: 8px;
+}
+
 .parts button.current {
   background: var(--accent-soft);
   border-color: var(--accent-soft);

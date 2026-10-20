@@ -61,6 +61,21 @@ export const ko = {
     notFound: '스크린샷을 찾지 못했어요. 이미 지웠을 수 있어요.',
     part: (i: number, n: number) => `${i} / ${n}번째 부분`,
     partsNotice: (n: number) => `페이지가 아주 길어서 ${n}장으로 나눠 보관했어요.`,
+    // 긴 캡처 나눌 곳 고르기 (Issue #7)
+    splitBtn: '나눌 곳 고르기',
+    splitEdited: '편집한 장이 있으면 나눌 곳을 바꿀 수 없어요. 편집을 모두 초기화하면 바꿀 수 있어요.',
+    splitTitle: '나눌 곳 고르기',
+    splitIntro: (n: number, max: number) =>
+      `페이지가 아주 길어서 ${n}장으로 나눠 찍었어요. 한 장에는 세로 ${max.toLocaleString()}px까지 담을 수 있어요. 왼쪽의 파란 선을 끌어 나눌 곳을 바꾸거나, ×를 눌러 두 장을 합칠 수 있어요.`,
+    splitPartRow: (i: number, w: number, h: number) => `${i}장 · ${w} x ${h.toLocaleString()} px`,
+    splitPartLabel: (n: number) => `${n}장`,
+    splitMerge: '앞 장과 합치기',
+    splitCantMerge: '합치면 한 장에 들어가지 않아요',
+    splitKeep: '이대로 두기',
+    splitAuto: '처음대로',
+    splitApply: '이렇게 나누기',
+    splitApplying: '나누는 중이에요…',
+    splitCount: (n: number) => `${n}장`,
   },
   toast: {
     copied: '클립보드에 복사했어요',

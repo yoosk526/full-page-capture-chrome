@@ -28,5 +28,7 @@ export interface ShotRecord {
   /** 편집 내용. 결과 화면·저장은 이 내용을 원본 위에 그려서 만든다 (RES-08) */
   doc: EditorDoc;
   links: LinkRect[];
+  /** 여러 장으로 나뉜 촬영에서 나눌 곳 고르기 창을 이미 보여 줬는지 (Issue #7) */
+  splitChosen?: boolean;
 }
 

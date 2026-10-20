@@ -395,3 +395,24 @@
   font-size: 13px;
   line-height: 1.5;
 }
+
+/* 긴 캡처 나눌 곳 고르기 (Issue #7) */
+.split-info {
+  overflow-y: auto;
+}
+
+.split-intro {
+  margin: 0;
+  padding: 18px 24px 14px;
+  color: var(--text);
+  font-size: 15px;
+  line-height: 1.6;
+}
+
+.split-list {
+  margin: 0;
+  padding: 12px 24px 20px 44px;
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.9;
+}
