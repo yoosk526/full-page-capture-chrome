@@ -90,6 +90,8 @@ export const ko = {
       pen: '펜',
       brush: '붓',
     },
+    hlStraight: '직선으로 긋기',
+    hlFree: '자유롭게 그리기',
     objectName: {
       rect: '사각형',
       ellipse: '타원',

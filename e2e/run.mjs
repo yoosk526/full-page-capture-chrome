@@ -173,6 +173,65 @@ async function editorFlow(context, extId, id) {
     await ed.keyboard.press(process.platform === 'darwin' ? 'Meta+z' : 'Control+z');
   }
 
+  // 그리는 동안에는 선택 상자가 안 보이고, 다 그리면 보인다. 형광펜은 직선 / 자유를 고를 수 있다 (Issue #6)
+  {
+    const lastObj = () =>
+      ed.evaluate(async (id) => {
+        await new Promise((r) => setTimeout(r, 1200));
+        const db = await new Promise((r) => { const q = indexedDB.open('hanjang-capture'); q.onsuccess = () => r(q.result); });
+        const shot = await new Promise((r) => { const q = db.transaction('shots').objectStore('shots').get(id); q.onsuccess = () => r(q.result); });
+        return shot.doc.objects.at(-1);
+      }, id);
+    // 편집 화면 캔버스에서 선택 상자 색(#2b6cde) 점 수를 센다
+    const blueDots = () =>
+      ed.evaluate(() => {
+        const c = document.getElementById('view');
+        const d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data;
+        let n = 0;
+        for (let i = 0; i < d.length; i += 4) if (Math.abs(d[i] - 43) < 6 && Math.abs(d[i + 1] - 108) < 6 && Math.abs(d[i + 2] - 222) < 6) n++;
+        return n;
+      });
+    await ed.keyboard.press('Escape');
+    const before = await blueDots();
+    await ed.keyboard.press('p');
+    const [px0, py0] = at(0.25, 0.3);
+    await ed.mouse.move(px0, py0);
+    await ed.mouse.down();
+    for (let k = 1; k <= 10; k++) await ed.mouse.move(px0 + k * 12, py0 + (k % 2 ? 10 : 0));
+    await ed.waitForTimeout(100);
+    const during = await blueDots();
+    await ed.mouse.up();
+    await ed.waitForTimeout(100);
+    const after = await blueDots();
+    check('편집기: 펜으로 그리는 동안 선택 상자가 안 보이고, 다 그리면 보임', during <= before && after > before + 20, `전 ${before}, 그리는 중 ${during}, 다 그린 뒤 ${after}`);
+    await ed.keyboard.press(process.platform === 'darwin' ? 'Meta+z' : 'Control+z');
+
+    await ed.locator('#toolbar [data-tool="highlighter"]').click();
+    const flyShown = await ed.locator('#hl-modes').isVisible();
+    const activeMode = await ed.locator('#hl-modes .active').getAttribute('data-mode');
+    check('편집기: 형광펜을 고르면 옆에 직선/자유 버튼이 나오고 처음은 직선', flyShown && activeMode === 'straight', `${flyShown} ${activeMode}`);
+    const drawZig = async () => {
+      const [hx, hy] = at(0.3, 0.5);
+      await ed.mouse.move(hx, hy);
+      await ed.mouse.down();
+      for (let k = 1; k <= 10; k++) await ed.mouse.move(hx + k * 15, hy + (k % 2 ? 12 : 0));
+      await ed.mouse.up();
+    };
+    await drawZig();
+    const straight = await lastObj();
+    check('편집기: 형광펜 직선 → 끈 경로와 상관없이 점 2개(곧은 선)', straight.type === 'highlighter' && straight.points.length === 4, `점 ${straight.points.length / 2}개`);
+    await ed.keyboard.press(process.platform === 'darwin' ? 'Meta+z' : 'Control+z');
+    await ed.locator('#hl-modes [data-mode="free"]').click();
+    await drawZig();
+    const free = await lastObj();
+    check('편집기: 형광펜 자유 → 지나간 대로 여러 점', free.type === 'highlighter' && free.points.length > 8, `점 ${free.points.length / 2}개`);
+    await ed.keyboard.press(process.platform === 'darwin' ? 'Meta+z' : 'Control+z');
+    await ed.locator('#hl-modes [data-mode="straight"]').click();
+    await ed.screenshot({ path: join(OUT, 'editor-highlighter-modes.png') });
+    await ed.keyboard.press('Escape');
+    check('편집기: 다른 도구로 바꾸면 직선/자유 버튼이 사라짐', await ed.locator('#hl-modes').isHidden());
+  }
+
   // Shift로 목록에서 두 개 고르기 → 함께 지우기 → 실행 취소
   {
     const n0 = await ed.locator('#objects-list li').count();

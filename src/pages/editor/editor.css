@@ -81,6 +81,25 @@ body {
   background: var(--border);
 }
 
+/* 형광펜 옆 직선 / 자유 버튼 (Issue #6) */
+.tool-flyout {
+  position: fixed;
+  z-index: 50;
+  display: flex;
+  gap: 2px;
+  padding: 3px;
+  transform: translateY(-50%);
+  border: 1px solid var(--border);
+  border-radius: var(--pill);
+  background: var(--surface);
+  box-shadow: var(--shadow);
+}
+
+.tool-flyout .icon-btn.active {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
 .toolbar .spacer {
   flex: 1;
 }

@@ -29,6 +29,8 @@ export interface Settings {
   stampDateFormat: StampDateFormat;
   /** 펜·형광펜으로 그린 선을 부드럽게 보정 (PR #1 세 번째 요청) */
   smoothStrokes: boolean;
+  /** 형광펜 그리기 방식 (Issue #6). 마지막에 고른 것을 기억한다 */
+  highlighterMode: 'straight' | 'free';
 }
 
 /** TODO(미확인): 선택지 목록은 모른다. 기본값 150ms만 [확인] */
@@ -54,6 +56,8 @@ export const DEFAULT_SETTINGS: Settings = {
   stampPosition: 'none',
   stampDateFormat: 'date',
   smoothStrokes: true,
+  // TODO(추정): 형광펜은 주로 직선으로 긋는다고 해서(Issue #6) 처음에는 직선
+  highlighterMode: 'straight',
 };
 
 function oneOf<T extends string | number>(value: unknown, allowed: readonly T[], fallback: T): T {
@@ -86,5 +90,6 @@ export function normalizeSettings(raw: unknown): Settings {
     stampPosition: oneOf(r.stampPosition, ['none', 'top', 'bottom', 'mac', 'windows'] as const, d.stampPosition),
     stampDateFormat: oneOf(r.stampDateFormat, ['date', 'datetime', 'iso', 'none'] as const, d.stampDateFormat),
     smoothStrokes: bool(r.smoothStrokes, d.smoothStrokes),
+    highlighterMode: oneOf(r.highlighterMode, ['straight', 'free'] as const, d.highlighterMode),
   };
 }
