@@ -334,3 +334,23 @@ export function buildPdf(pages: PdfPageSpec[]): Uint8Array {
   }
   return out;
 }
+
+// ---- 미리보기 확대·쪽 고르기 (Issue #5) ----
+
+/** 미리보기 왼쪽 그림의 확대 한계와 한 번에 바뀌는 비율. TODO(추정) */
+export const STRIP_ZOOM_MIN = 0.5;
+export const STRIP_ZOOM_MAX = 4;
+export const STRIP_ZOOM_STEP = 1.25;
+
+/** 왼쪽 그림 확대(+1)·축소(-1) 한 단계. 한계를 넘지 않는다 */
+export function stepStripZoom(current: number, dir: 1 | -1): number {
+  const next = dir > 0 ? current * STRIP_ZOOM_STEP : current / STRIP_ZOOM_STEP;
+  return Math.min(STRIP_ZOOM_MAX, Math.max(STRIP_ZOOM_MIN, Math.round(next * 1000) / 1000));
+}
+
+/**
+ * 쪽 수가 바뀌었을 때 고른 상태를 맞춘다. 있던 쪽은 고른 상태를 그대로 두고, 새로 생긴 쪽은 고른 상태로 둔다.
+ */
+export function resizeSelection(prev: readonly boolean[], count: number): boolean[] {
+  return Array.from({ length: count }, (_, i) => (i < prev.length ? prev[i] : true));
+}

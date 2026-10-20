@@ -80,23 +80,99 @@
 }
 
 .pdfp-body {
+  position: relative;
   display: flex;
   flex: 1;
   min-height: 0;
 }
 
-.pdfp-strip-wrap {
+/* 왼쪽 칸: 확대 버튼 + 긴 그림 (Issue #5) */
+.pdfp-left {
+  display: flex;
   flex: none;
-  width: 360px;
-  padding: 20px 30px;
-  overflow-y: auto;
+  flex-direction: column;
+  width: 380px;
+  min-width: 0;
   background: #e4e7ec;
+}
+
+.pdfp-zoom {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 8px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.pdfp-zoom .icon-btn {
+  width: 32px;
+  height: 32px;
+}
+
+#pdfp-zoom-label {
+  min-width: 52px;
+  text-align: center;
+  font-size: 15px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.pdfp-strip-wrap {
+  flex: 1;
+  min-height: 0;
+  padding: 20px 30px;
+  overflow: auto;
 }
 
 .pdfp-strip {
   position: relative;
-  width: 300px;
+  margin: 0 auto;
   box-shadow: 0 2px 10px rgba(20, 30, 50, 0.18);
+}
+
+/* 왼쪽·오른쪽 칸 사이 경계: 끌어서 너비 조절 (Issue #5) */
+.pdfp-splitter {
+  flex: none;
+  width: 8px;
+  cursor: col-resize;
+  background: var(--border);
+  touch-action: none;
+}
+
+.pdfp-splitter:hover,
+.pdfp-splitter.dragging {
+  background: var(--primary);
+}
+
+.pdfp-right {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.pdfp-selbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 24px;
+  border-bottom: 1px solid var(--border);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.pdfp-link {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--primary);
+  font-size: 14px;
+}
+
+.pdfp-link:hover {
+  text-decoration: underline;
 }
 
 .pdfp-strip canvas {
@@ -175,17 +251,126 @@
   align-content: start;
   gap: 20px 18px;
   padding: 20px 24px;
+  min-height: 0;
   overflow-y: auto;
 }
 
 .pdfp-card {
   margin: 0;
+  cursor: pointer;
+}
+
+.pdfp-card-thumb {
+  position: relative;
 }
 
 .pdfp-card canvas {
   display: block;
   border: 1px solid var(--border);
   box-shadow: 0 1px 4px rgba(20, 30, 50, 0.12);
+}
+
+/* 저장하지 않을 쪽은 흐리게 */
+.pdfp-card:not(.picked) canvas {
+  opacity: 0.35;
+}
+
+.pdfp-card.picked canvas {
+  outline: 2px solid var(--primary);
+  outline-offset: 1px;
+}
+
+.pdfp-card-check {
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border: 2px solid #fff;
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.3);
+  color: transparent;
+}
+
+.pdfp-card.picked .pdfp-card-check {
+  border-color: var(--primary);
+  background: var(--primary);
+  color: #fff;
+}
+
+.pdfp-card-check svg {
+  width: 14px;
+  height: 14px;
+}
+
+/* 쪽 위에 마우스를 올리면 나오는 "크게 보기" (Issue #5) */
+.pdfp-card-view {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  display: none;
+  width: 30px;
+  height: 30px;
+  background: rgba(255, 255, 255, 0.95);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.25);
+}
+
+.pdfp-card:hover .pdfp-card-view,
+.pdfp-card-view:focus-visible {
+  display: inline-flex;
+}
+
+/* 쪽 크게 보기 창 */
+.pdfp-viewer {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  background: rgba(20, 24, 32, 0.92);
+}
+
+.pdfp-viewer-head {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 10px;
+  color: #fff;
+  font-weight: 600;
+}
+
+.pdfp-viewer-head .icon-btn {
+  color: #fff;
+}
+
+.pdfp-viewer-head .icon-btn:disabled {
+  opacity: 0.3;
+}
+
+#pdfp-viewer-next svg {
+  transform: scaleX(-1);
+}
+
+.pdfp-viewer-close {
+  position: absolute;
+  right: 14px;
+}
+
+.pdfp-viewer-stage {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  align-items: center;
+  justify-content: center;
+  overflow: auto;
+}
+
+.pdfp-viewer-stage canvas {
+  box-shadow: 0 6px 30px rgba(0, 0, 0, 0.5);
 }
 
 .pdfp-card figcaption {

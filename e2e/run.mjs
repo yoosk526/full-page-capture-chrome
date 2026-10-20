@@ -405,6 +405,7 @@ async function exportFlow(context, worker, extId, id) {
       return null;
     }, ext);
   const magic = { png: '89504e47', jpg: 'ffd8ff', pdf: '25504446' };
+  let pdfPicked = -1;
   for (const fmt of ['png', 'jpg', 'pdf']) {
     await page.locator('#save-more').click();
     await page.locator(`#save-menu button[data-format="${fmt}"]`).click();
@@ -430,6 +431,51 @@ async function exportFlow(context, worker, extId, id) {
       const mergeOk = await page.locator('#pdf-preview .pdfp-merge').first().isDisabled();
       check('PDF 미리보기: 합치면 한 쪽에 안 들어가는 선은 합치기 버튼이 꺼짐', mergeOk);
       await page.screenshot({ path: join(OUT, 'pdf-preview-moved.png') });
+
+      // 왼쪽 그림 확대: 버튼, Ctrl+휠 (Issue #5)
+      const stripW = () => page.locator('#pdfp-strip').evaluate((el) => el.getBoundingClientRect().width);
+      const w0 = await stripW();
+      await page.locator('#pdfp-zoom-in').click();
+      const w1 = await stripW();
+      const zl = await page.locator('#pdfp-zoom-label').textContent();
+      const sw = await page.locator('#pdfp-strip-wrap').boundingBox();
+      await page.mouse.move(sw.x + sw.width / 2, sw.y + 100);
+      await page.keyboard.down('Control');
+      await page.mouse.wheel(0, -100);
+      await page.keyboard.up('Control');
+      await page.waitForTimeout(100);
+      const w2 = await stripW();
+      check('PDF 미리보기: 왼쪽 그림 확대 버튼·Ctrl+휠로 커짐', w1 > w0 * 1.2 && zl === '125%' && w2 > w1 * 1.2, `${w0} → ${w1} (${zl}) → ${w2}`);
+      // 칸 사이 경계를 끌어 너비 조절
+      const left0 = (await page.locator('#pdfp-left').boundingBox()).width;
+      const sp = await page.locator('#pdfp-splitter').boundingBox();
+      await page.mouse.move(sp.x + sp.width / 2, sp.y + 200);
+      await page.mouse.down();
+      await page.mouse.move(sp.x + 120, sp.y + 200, { steps: 4 });
+      await page.mouse.up();
+      const left1 = (await page.locator('#pdfp-left').boundingBox()).width;
+      check('PDF 미리보기: 칸 사이 경계를 끌면 왼쪽 칸이 넓어짐', left1 > left0 + 80, `${left0} → ${left1}`);
+      // 쪽 위에 마우스를 올리면 "크게 보기" → 크게 보기 창, →로 다음 쪽, Esc는 그 창만 닫음
+      const card1 = page.locator('#pdf-preview .pdfp-card').first();
+      await card1.hover();
+      const viewBtn = card1.locator('.pdfp-card-view');
+      const viewVisible = await viewBtn.isVisible();
+      await viewBtn.click();
+      const t1 = await page.locator('#pdfp-viewer-title').textContent();
+      await page.keyboard.press('ArrowRight');
+      const t2 = await page.locator('#pdfp-viewer-title').textContent();
+      await page.screenshot({ path: join(OUT, 'pdf-preview-viewer.png') });
+      await page.keyboard.press('Escape');
+      const viewerClosed = await page.locator('#pdfp-viewer').isHidden();
+      const dialogOpen = (await page.locator('#pdf-preview').count()) === 1;
+      check('PDF 미리보기: 쪽 위 "크게 보기" → 크게 보기 창, →로 다음 쪽, Esc는 크게 보기만 닫음', viewVisible && t1.startsWith('1쪽') && t2.startsWith('2쪽') && viewerClosed && dialogOpen, `${viewVisible} ${t1} → ${t2}, 닫힘 ${viewerClosed}, 미리보기 ${dialogOpen}`);
+      // 쪽을 누르면 저장할 쪽에서 빠짐
+      const nCards = await page.locator('#pdf-preview .pdfp-card').count();
+      await page.locator('#pdf-preview .pdfp-card').last().click();
+      const selText = await page.locator('#pdfp-sel-count').textContent();
+      const saveText = await page.locator('#pdfp-save').textContent();
+      check('PDF 미리보기: 쪽을 누르면 저장에서 빠지고 버튼에 쪽 수 표시', selText === `${nCards}쪽 중 ${nCards - 1}쪽 저장` && saveText === `${nCards - 1}쪽 PDF로 저장`, `${selText} / ${saveText}`);
+      await page.screenshot({ path: join(OUT, 'pdf-preview-pick.png') });
       // Esc로 취소하면 저장되지 않는다
       const before = await worker.evaluate(async () => (await chrome.downloads.search({})).length);
       await page.keyboard.press('Escape');
@@ -439,6 +485,9 @@ async function exportFlow(context, worker, extId, id) {
       await page.locator('#save-more').click();
       await page.locator('#save-menu button[data-format="pdf"]').click();
       await page.waitForSelector('#pdf-preview .pdfp-card');
+      // 2쪽을 빼고 저장 → 그만큼 적은 쪽의 PDF (Issue #5). 링크가 있는 1쪽과 여백이 남는 마지막 쪽은 남긴다
+      pdfPicked = (await page.locator('#pdf-preview .pdfp-card').count()) - 1;
+      await page.locator('#pdf-preview .pdfp-card').nth(1).click();
       await page.locator('#pdfp-save').click();
     }
     const d = await waitDownload(fmt);
@@ -450,6 +499,7 @@ async function exportFlow(context, worker, extId, id) {
       const text = readFileSync(d.filename).toString('latin1');
       const count = Number(text.match(/\/Count (\d+)/)?.[1]);
       check('저장: A4 PDF는 여러 페이지 + 링크 포함', count >= 2 && text.includes('/URI (https://example.com/link)'), `페이지 ${count}`);
+      check('저장: 미리보기에서 고른 쪽만 PDF에 들어감', count === pdfPicked, `${count}쪽 (고른 쪽 ${pdfPicked})`);
       // 마지막 쪽은 그림이 짧아 남는 여백을 그림 바탕색(마지막 구역 색, 흰색 아님)으로 채운다
       const fills = [...text.matchAll(/([\d.]+) ([\d.]+) ([\d.]+) rg [\d.]+ [\d.]+ [\d.]+ [\d.]+ re f/g)].map((m) => m.slice(1, 4).map(Number));
       const last = fills.at(-1);
