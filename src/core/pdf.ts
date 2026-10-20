@@ -11,6 +11,8 @@ export const PAPER_SIZE_PT: Record<Exclude<PdfPaper, 'full'>, [number, number]> 
 export const PAGE_MARGIN_PT = 36;
 /** "이미지 한 장" 용지에서 픽셀 → pt 비율 (96dpi 기준) */
 export const PX_TO_PT = 0.75;
+/** PDF 한 페이지의 가장 긴 변(pt). PDF 표준이 권하는 한계로, 넘으면 열리지 않거나 잘리는 프로그램이 있다 */
+export const PDF_MAX_PAGE_PT = 14400;
 /** 똑똑한 페이지 나누기가 줄 사이를 찾는 범위(한 페이지 높이에 대한 비율). TODO(미확인) */
 export const SMART_BREAK_WINDOW = 0.2;
 
@@ -172,7 +174,9 @@ export interface PageGeometry {
  */
 export function pageGeometry(paper: PdfPaper, imageW: number, imageH: number, orientation: PdfOrientation = 'portrait'): PageGeometry {
   if (paper === 'full') {
-    return { pageW: imageW * PX_TO_PT, pageH: imageH * PX_TO_PT, originX: 0, originY: 0, scale: PX_TO_PT, sliceH: imageH };
+    // 아주 긴 이미지(Issue #7: 최대 32,000px)는 페이지를 PDF 한계 안으로 줄인다. 그림 화질(픽셀)은 그대로다
+    const scale = Math.min(PX_TO_PT, PDF_MAX_PAGE_PT / imageH, PDF_MAX_PAGE_PT / imageW);
+    return { pageW: imageW * scale, pageH: imageH * scale, originX: 0, originY: 0, scale, sliceH: imageH };
   }
   const [shortSide, longSide] = PAPER_SIZE_PT[paper];
   const [pageW, pageH] = orientation === 'landscape' ? [longSide, shortSide] : [shortSide, longSide];

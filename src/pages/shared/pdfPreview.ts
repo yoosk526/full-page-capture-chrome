@@ -2,23 +2,20 @@
 // 페이지가 어디서 나뉘는지 보여 주고, 나뉘는 선을 끌어 고치거나 두 쪽을 합칠 수 있다.
 // Issue #5: 왼쪽 그림 확대, 칸 너비 조절, 쪽 크게 보기, 고른 쪽만 저장.
 // TODO(추정): 여기서 바꾼 용지·방향은 이번 저장에만 쓰고 설정에는 남기지 않는다 (Q46 답변 ①).
-import { breaksFromSlices, moveBreak, removeBreak, resizeSelection, slicesFromBreaks, stepStripZoom, type Slice } from '../../core/pdf';
+import { breaksFromSlices, resizeSelection, slicesFromBreaks, type Slice } from '../../core/pdf';
 import type { PdfOrientation, PdfPaper, Settings } from '../../core/settings';
 import { t } from '../../shared/i18n';
 import { icons } from '../../shared/icons';
 import type { ShotRecord } from '../../shared/types';
 import { buildPdfBlob, planPdf, sliceFillColor, type PdfPlan } from '../../render/exportPdf';
+import { BreakStrip } from './breakStrip';
 import './pdfPreview.css';
 
-/** 왼쪽 긴 그림의 폭 (CSS px, 확대 100%일 때) */
-const STRIP_W = 300;
 /** 왼쪽 칸 너비 조절 한계 (CSS px). TODO(추정) */
 const LEFT_MIN = 240;
 const RIGHT_MIN = 260;
 /** 오른쪽 페이지 그림의 폭 (CSS px) */
 const CARD_W = 150;
-/** 캔버스 한 변의 한계보다 작게 */
-const MAX_CANVAS_SIDE = 30000;
 const PAPERS: PdfPaper[] = ['full', 'a4', 'letter', 'legal'];
 
 /**
@@ -33,7 +30,6 @@ export function openPdfPreview(rendered: OffscreenCanvas, shot: ShotRecord, sett
   let breaks: number[] = [];
   /** 오른쪽 쪽마다 저장할지 */
   let picked: boolean[] = [];
-  let stripZoom = 1;
   /** 크게 보기 중인 쪽 번호(0부터). 닫혀 있으면 -1 */
   let viewing = -1;
 
@@ -55,14 +51,6 @@ export function openPdfPreview(rendered: OffscreenCanvas, shot: ShotRecord, sett
         <button class="btn" id="pdfp-auto"></button>
       </div>
       <div class="pdfp-body" id="pdfp-body">
-        <div class="pdfp-left" id="pdfp-left">
-          <div class="pdfp-zoom">
-            <button class="icon-btn" id="pdfp-zoom-out"></button>
-            <span id="pdfp-zoom-label">100%</span>
-            <button class="icon-btn" id="pdfp-zoom-in"></button>
-          </div>
-          <div class="pdfp-strip-wrap" id="pdfp-strip-wrap"><div class="pdfp-strip" id="pdfp-strip"><canvas id="pdfp-strip-canvas"></canvas></div></div>
-        </div>
         <div class="pdfp-splitter" id="pdfp-splitter" role="separator" aria-orientation="vertical"></div>
         <div class="pdfp-right">
           <div class="pdfp-selbar">
@@ -96,10 +84,6 @@ export function openPdfPreview(rendered: OffscreenCanvas, shot: ShotRecord, sett
   q('pdfp-auto').textContent = P.auto;
   q('pdfp-cancel').textContent = P.cancel;
   q('pdfp-save').textContent = P.save;
-  q('pdfp-zoom-in').innerHTML = icons.plus;
-  q('pdfp-zoom-in').title = `${P.zoomIn} · ${P.zoomHint}`;
-  q('pdfp-zoom-out').innerHTML = icons.minus;
-  q('pdfp-zoom-out').title = `${P.zoomOut} · ${P.zoomHint}`;
   q('pdfp-splitter').title = P.splitter;
   q('pdfp-viewer-prev').innerHTML = icons.back;
   q('pdfp-viewer-prev').title = P.prev;
@@ -120,50 +104,29 @@ export function openPdfPreview(rendered: OffscreenCanvas, shot: ShotRecord, sett
     q('pdfp-orient').appendChild(b);
   }
 
-  const strip = q('pdfp-strip');
-  const stripCanvas = q<HTMLCanvasElement>('pdfp-strip-canvas');
-  let k = 1;
+  // 왼쪽: 긴 그림과 나뉘는 선 (확대·축소, 선 끌기, ×로 합치기)
+  const strip = new BreakStrip({
+    idPrefix: 'pdfp',
+    imageW: 1,
+    imageH: 1,
+    draw: (ctx, w, h) => ctx.drawImage(plan.canvas, 0, 0, w, h),
+    sliceH: 1,
+    label: P.pageLabel,
+    mergeTitle: P.merge,
+    cantMergeTitle: P.cantMerge,
+    onChange: () => {
+      breaks = strip.breaks;
+      render();
+    },
+  });
+  q('pdfp-body').prepend(strip.el);
 
   const replan = () => {
     plan = planPdf(rendered, shot, { ...settings, pdfPaper: paper, pdfOrientation: orientation });
     breaks = breaksFromSlices(plan.slices);
     picked = plan.slices.map(() => true);
-    strip.querySelectorAll('.pdfp-break').forEach((el) => el.remove());
-    drawStrip();
+    strip.reset({ imageW: plan.canvas.width, imageH: plan.canvas.height, sliceH: plan.g.sliceH, findBreak: plan.findBreak }, breaks);
     render();
-  };
-
-  const stripWrap = q('pdfp-strip-wrap');
-  const drawStrip = () => {
-    const c = plan.canvas;
-    const cssW = STRIP_W * stripZoom;
-    k = cssW / c.width;
-    const cssH = c.height * k;
-    const res = Math.min(devicePixelRatio || 1, MAX_CANVAS_SIDE / cssH, MAX_CANVAS_SIDE / cssW);
-    stripCanvas.width = Math.round(cssW * res);
-    stripCanvas.height = Math.max(1, Math.round(cssH * res));
-    stripCanvas.style.width = `${cssW}px`;
-    stripCanvas.style.height = `${cssH}px`;
-    strip.style.width = `${cssW}px`;
-    strip.style.height = `${cssH}px`;
-    q('pdfp-zoom-label').textContent = `${Math.round(stripZoom * 100)}%`;
-    (q('pdfp-zoom-in') as HTMLButtonElement).disabled = stepStripZoom(stripZoom, 1) === stripZoom;
-    (q('pdfp-zoom-out') as HTMLButtonElement).disabled = stepStripZoom(stripZoom, -1) === stripZoom;
-    const ctx = stripCanvas.getContext('2d')!;
-    ctx.imageSmoothingQuality = 'high';
-    ctx.drawImage(c, 0, 0, stripCanvas.width, stripCanvas.height);
-  };
-
-  /** 왼쪽 그림 확대·축소. 보던 곳이 그대로 보이도록 스크롤을 맞춘다 */
-  const setStripZoom = (z: number) => {
-    if (z === stripZoom) return;
-    const fy = (stripWrap.scrollTop + stripWrap.clientHeight / 2) / Math.max(1, stripWrap.scrollHeight);
-    const fx = (stripWrap.scrollLeft + stripWrap.clientWidth / 2) / Math.max(1, stripWrap.scrollWidth);
-    stripZoom = z;
-    drawStrip();
-    render();
-    stripWrap.scrollTop = fy * stripWrap.scrollHeight - stripWrap.clientHeight / 2;
-    stripWrap.scrollLeft = fx * stripWrap.scrollWidth - stripWrap.clientWidth / 2;
   };
 
   /** 한 쪽을 실제 PDF 모양(용지, 여백, 남는 곳 채우기)으로 그린다 */
@@ -231,18 +194,6 @@ export function openPdfPreview(rendered: OffscreenCanvas, shot: ShotRecord, sett
       save.disabled = nPicked === 0;
     }
 
-    // 왼쪽: 나뉘는 선. 끄는 중인 선(포인터를 잡고 있음)이 지워지지 않도록 있는 요소를 고쳐 쓴다
-    const lines = Array.from(strip.querySelectorAll<HTMLElement>('.pdfp-break'));
-    lines.slice(breaks.length).forEach((el) => el.remove());
-    breaks.forEach((b, i) => {
-      const line = lines[i] ?? makeLine(i);
-      line.style.top = `${b * k}px`;
-      const merge = line.querySelector<HTMLButtonElement>('.pdfp-merge')!;
-      const merged = removeBreak(breaks, i, plan.canvas.height, plan.g.sliceH);
-      merge.disabled = !merged;
-      merge.title = merged ? P.merge : P.cantMerge;
-    });
-
     // 오른쪽: 페이지 모양. 누르면 저장할 쪽으로 고르거나 빼고, 마우스를 올리면 "크게 보기" 버튼이 나온다
     const pages = q('pdfp-pages');
     pages.textContent = '';
@@ -278,59 +229,6 @@ export function openPdfPreview(rendered: OffscreenCanvas, shot: ShotRecord, sett
       pages.appendChild(card);
     });
     if (viewing >= 0) showViewer(viewing);
-  };
-
-  const makeLine = (i: number): HTMLElement => {
-    const line = document.createElement('div');
-    line.className = 'pdfp-break';
-    line.dataset.index = String(i);
-    const label = document.createElement('span');
-    label.className = 'pdfp-break-label';
-    label.textContent = `↕ ${P.pageLabel(i + 2)}`;
-    const merge = document.createElement('button');
-    merge.className = 'pdfp-merge';
-    merge.innerHTML = icons.close;
-    merge.addEventListener('pointerdown', (e) => e.stopPropagation());
-    merge.addEventListener('click', () => {
-      const next = removeBreak(breaks, i, plan.canvas.height, plan.g.sliceH);
-      if (next) {
-        breaks = next;
-        render();
-      }
-    });
-    line.append(label, merge);
-    line.addEventListener('pointerdown', (e) => startDrag(e, i, line));
-    strip.appendChild(line);
-    return line;
-  };
-
-  const startDrag = (e: PointerEvent, index: number, line: HTMLElement) => {
-    e.preventDefault();
-    line.setPointerCapture(e.pointerId);
-    line.classList.add('dragging');
-    const start = breaks.slice();
-    let raf = 0;
-    const onMove = (ev: PointerEvent) => {
-      const y = (ev.clientY - strip.getBoundingClientRect().top) / k;
-      breaks = moveBreak(start, index, y, plan.canvas.height, plan.g.sliceH, plan.findBreak);
-      line.style.top = `${breaks[index] * k}px`;
-      if (!raf)
-        raf = requestAnimationFrame(() => {
-          raf = 0;
-          render();
-        });
-    };
-    const onUp = () => {
-      line.removeEventListener('pointermove', onMove);
-      line.removeEventListener('pointerup', onUp);
-      line.removeEventListener('pointercancel', onUp);
-      if (raf) cancelAnimationFrame(raf);
-      line.classList.remove('dragging');
-      render();
-    };
-    line.addEventListener('pointermove', onMove);
-    line.addEventListener('pointerup', onUp);
-    line.addEventListener('pointercancel', onUp);
   };
 
   return new Promise((resolve) => {
@@ -371,17 +269,6 @@ export function openPdfPreview(rendered: OffscreenCanvas, shot: ShotRecord, sett
         replan();
       }
     });
-    q('pdfp-zoom-in').addEventListener('click', () => setStripZoom(stepStripZoom(stripZoom, 1)));
-    q('pdfp-zoom-out').addEventListener('click', () => setStripZoom(stepStripZoom(stripZoom, -1)));
-    stripWrap.addEventListener(
-      'wheel',
-      (e) => {
-        if (!(e.ctrlKey || e.metaKey)) return;
-        e.preventDefault();
-        setStripZoom(stepStripZoom(stripZoom, e.deltaY < 0 ? 1 : -1));
-      },
-      { passive: false },
-    );
     // 왼쪽·오른쪽 칸 사이를 끌어 너비를 바꾼다 (Issue #5)
     const splitter = q('pdfp-splitter');
     splitter.addEventListener('pointerdown', (e) => {
@@ -413,6 +300,7 @@ export function openPdfPreview(rendered: OffscreenCanvas, shot: ShotRecord, sett
     q('pdfp-viewer-close').addEventListener('click', hideViewer);
     q('pdfp-auto').addEventListener('click', () => {
       breaks = breaksFromSlices(plan.slices);
+      strip.setBreaks(breaks);
       render();
     });
     q('pdfp-save').addEventListener('click', async () => {

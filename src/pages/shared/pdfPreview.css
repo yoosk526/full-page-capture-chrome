@@ -111,7 +111,7 @@
   height: 32px;
 }
 
-#pdfp-zoom-label {
+.pdfp-zoom-label {
   min-width: 52px;
   text-align: center;
   font-size: 15px;

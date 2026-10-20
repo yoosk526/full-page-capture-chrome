@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   MAX_PART_AREA,
   MAX_PART_HEIGHT,
+  regroupSegments,
   fitToCaptured,
   outputHeightCss,
   pickBackgroundColor,
@@ -195,5 +196,31 @@ describe('fitToCaptured: 실제로 찍힌 높이에 맞추기', () => {
   // 목적: 찍힌 이미지가 더 짧은데 화면 높이를 그대로 써서 조각 사이에 빈 띠가 생기는 결함을 막는다(E2E에서 실제 발견)
   it('[BVA] TC-FIT-02 찍힌 높이 = 화면 높이-1 → 화면·영역 높이를 줄임', () => {
     expect(fitToCaptured(m, 699)).toEqual({ ...m, viewportHeight: 699, regionHeight: 599 });
+  });
+});
+
+describe('regroupSegments: 나눌 곳을 고쳐 다시 자르기 (Issue #7)', () => {
+  const parts = [
+    { y: 0, height: 1000 },
+    { y: 1000, height: 1000 },
+    { y: 2000, height: 500 },
+  ];
+
+  // 목적: 새 장이 원래 두 장에 걸칠 때 한쪽만 가져와 내용이 빠지는 결함을 막는다
+  it('[EP] TC-REGRP-01 새 장 [800, 1600) → 1장의 800~1000 + 2장의 0~600', () => {
+    expect(regroupSegments(parts, { y: 800, h: 800 })).toEqual([
+      { part: 0, srcY: 800, height: 200, destY: 0 },
+      { part: 1, srcY: 0, height: 600, destY: 200 },
+    ]);
+  });
+
+  // 목적: 새 장의 끝이 원래 경계와 딱 맞을 때 다음 장에서 0px짜리 조각을 가져오는 결함을 막는다
+  it('[BVA] TC-REGRP-02 새 장 끝 = 원래 장 경계(1000) → 조각 1개', () => {
+    expect(regroupSegments(parts, { y: 0, h: 1000 })).toEqual([{ part: 0, srcY: 0, height: 1000, destY: 0 }]);
+  });
+
+  // 목적: 경계를 1px 넘긴 새 장에서 넘긴 1px를 빠뜨리는 결함을 막는다
+  it('[BVA] TC-REGRP-03 새 장 끝 = 원래 경계 + 1 → 다음 장에서 1px를 가져옴', () => {
+    expect(regroupSegments(parts, { y: 0, h: 1001 }).at(-1)).toEqual({ part: 1, srcY: 0, height: 1, destY: 1000 });
   });
 });

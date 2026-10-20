@@ -8,11 +8,17 @@
 // - 문서 전체가 스크롤되는 일반 페이지: regionTop = 0, regionHeight = 화면 높이
 // - 내부 스크롤 영역(웹 메일, 대시보드 등, CAP-07): 그 요소가 화면에서 차지하는 세로 구간
 
-/** 캔버스 한 장의 최대 높이(device px). Chrome의 캔버스 한계(가로·세로 32,767px)와
- * PDF 한 페이지 한계(14,400pt ≈ 19,200px)보다 작게 잡았다. 분할 기준은 [미확인](CAP-08). */
-export const MAX_PART_HEIGHT = 16384;
-/** 캔버스 한 장의 최대 픽셀 수. Chrome 한계(268,435,456)의 절반으로 메모리 여유를 둔다. */
-export const MAX_PART_AREA = 16384 * 8192;
+/** 캔버스 한 장의 최대 높이(device px). Chrome의 캔버스 한계(가로·세로 32,767px)에서
+ * 주소·날짜 띠(최대 108px)와 PDF 머리글(최대 72px)을 붙일 자리를 남겼다.
+ * Issue #7: 긴 페이지도 되도록 한 장으로 보이게 16,384에서 올렸다. 분할 기준은 [미확인](CAP-08). */
+export const MAX_PART_HEIGHT = 32000;
+/** 캔버스 한 장의 최대 픽셀 수. Chrome 한계(268,435,456)보다 작게 잡아 띠를 붙일 여유를 둔다. */
+export const MAX_PART_AREA = 200_000_000;
+
+/** 이 폭의 이미지 한 장에 담을 수 있는 최대 높이(device px) */
+export function maxPartHeight(width: number): number {
+  return Math.min(MAX_PART_HEIGHT, Math.floor(MAX_PART_AREA / width));
+}
 
 /**
  * 스크롤 위치 목록을 만든다. 조각 수 = ceil(콘텐츠 높이 / 영역 높이) (TODO(추정): 관찰값 기반 추정).
@@ -119,12 +125,41 @@ export function splitIntoParts(
 ): Part[] {
   if (!(width > 0) || !(totalHeight > 0)) throw new RangeError('width and totalHeight must be > 0');
   const partHeight = Math.min(maxHeight, Math.floor(maxArea / width));
+  return splitAt(totalHeight, partHeight);
+}
+
+function splitAt(totalHeight: number, partHeight: number): Part[] {
   if (partHeight < 1) throw new RangeError('width exceeds canvas area limit');
   const parts: Part[] = [];
   for (let y = 0; y < totalHeight; y += partHeight) {
     parts.push({ y, height: Math.min(partHeight, totalHeight - y) });
   }
   return parts;
+}
+
+export interface Segment {
+  /** 원래 장 번호(0부터) */
+  part: number;
+  /** 원래 장 안에서 가져올 위치 */
+  srcY: number;
+  height: number;
+  /** 새 장 안에서 붙일 위치 */
+  destY: number;
+}
+
+/**
+ * 나뉜 여러 장(parts, 위에서부터 이어진 순서)을 하나로 이어 본 위치 [y, y+h)를
+ * 원래 장들의 어느 부분에서 가져오면 되는지 (Issue #7: 사용자가 나눌 곳을 고쳐 다시 자를 때).
+ */
+export function regroupSegments(parts: readonly Part[], slice: { y: number; h: number }): Segment[] {
+  const out: Segment[] = [];
+  const end = slice.y + slice.h;
+  parts.forEach((p, i) => {
+    const a = Math.max(slice.y, p.y);
+    const b = Math.min(end, p.y + p.height);
+    if (b > a) out.push({ part: i, srcY: a - p.y, height: b - a, destY: a - slice.y });
+  });
+  return out;
 }
 
 /** 배경색이 투명인지 (getComputedStyle 결과 문자열 기준) */
