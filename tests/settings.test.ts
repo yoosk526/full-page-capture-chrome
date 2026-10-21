@@ -15,4 +15,10 @@ describe('normalizeSettings: 저장된 설정 검증 (SET-10 ~ SET-23)', () => {
     expect(s.saveFolder).toBe('');
     expect(s.pdfLinks).toBe(false);
   });
+
+  // 목적: 저장된 여백 값이 손상됐을 때 PDF가 NaN 크기로 만들어지는 결함을 막는다 (Issue #9)
+  it('[EP] TC-SETN-03 모르는 여백 값 → 기본값(보통), 정상 값은 유지', () => {
+    expect(normalizeSettings({ pdfMargin: '99' }).pdfMargin).toBe('normal');
+    expect(normalizeSettings({ pdfMargin: 'none' }).pdfMargin).toBe('none');
+  });
 });

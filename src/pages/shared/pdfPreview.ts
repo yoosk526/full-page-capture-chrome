@@ -3,7 +3,7 @@
 // Issue #5: 왼쪽 그림 확대, 칸 너비 조절, 쪽 크게 보기, 고른 쪽만 저장.
 // TODO(추정): 여기서 바꾼 용지·방향은 이번 저장에만 쓰고 설정에는 남기지 않는다 (Q46 답변 ①).
 import { breaksFromSlices, resizeSelection, slicesFromBreaks, type Slice } from '../../core/pdf';
-import type { PdfOrientation, PdfPaper, Settings } from '../../core/settings';
+import type { PdfMargin, PdfOrientation, PdfPaper, Settings } from '../../core/settings';
 import { t } from '../../shared/i18n';
 import { icons } from '../../shared/icons';
 import type { ShotRecord } from '../../shared/types';
@@ -26,6 +26,7 @@ export function openPdfPreview(rendered: OffscreenCanvas, shot: ShotRecord, sett
   const P = t.pdfPreview;
   let paper: PdfPaper = settings.pdfPaper;
   let orientation: PdfOrientation = settings.pdfOrientation;
+  let margin: PdfMargin = settings.pdfMargin;
   let plan: PdfPlan;
   let breaks: number[] = [];
   /** 오른쪽 쪽마다 저장할지 */
@@ -47,6 +48,8 @@ export function openPdfPreview(rendered: OffscreenCanvas, shot: ShotRecord, sett
         <div class="pdfp-seg" id="pdfp-paper"></div>
         <span class="pdfp-label" id="pdfp-orient-label"></span>
         <div class="pdfp-seg" id="pdfp-orient"></div>
+        <span class="pdfp-label" id="pdfp-margin-label"></span>
+        <div class="pdfp-seg" id="pdfp-margin"></div>
         <span class="pdfp-count" id="pdfp-count"></span>
         <button class="btn" id="pdfp-auto"></button>
       </div>
@@ -81,6 +84,7 @@ export function openPdfPreview(rendered: OffscreenCanvas, shot: ShotRecord, sett
   q('pdfp-close').title = t.common.close;
   q('pdfp-paper-label').textContent = P.paper;
   q('pdfp-orient-label').textContent = P.orientation;
+  q('pdfp-margin-label').textContent = P.margin;
   q('pdfp-auto').textContent = P.auto;
   q('pdfp-cancel').textContent = P.cancel;
   q('pdfp-save').textContent = P.save;
@@ -103,6 +107,12 @@ export function openPdfPreview(rendered: OffscreenCanvas, shot: ShotRecord, sett
     b.textContent = t.options[o];
     q('pdfp-orient').appendChild(b);
   }
+  for (const m of ['none', 'narrow', 'normal'] as const) {
+    const b = document.createElement('button');
+    b.dataset.value = m;
+    b.textContent = t.options.margins[m];
+    q('pdfp-margin').appendChild(b);
+  }
 
   // 왼쪽: 긴 그림과 나뉘는 선 (확대·축소, 선 끌기, ×로 합치기)
   const strip = new BreakStrip({
@@ -122,7 +132,7 @@ export function openPdfPreview(rendered: OffscreenCanvas, shot: ShotRecord, sett
   q('pdfp-body').prepend(strip.el);
 
   const replan = () => {
-    plan = planPdf(rendered, shot, { ...settings, pdfPaper: paper, pdfOrientation: orientation });
+    plan = planPdf(rendered, shot, { ...settings, pdfPaper: paper, pdfOrientation: orientation, pdfMargin: margin });
     breaks = breaksFromSlices(plan.slices);
     picked = plan.slices.map(() => true);
     strip.reset({ imageW: plan.canvas.width, imageH: plan.canvas.height, sliceH: plan.g.sliceH, findBreak: plan.findBreak }, breaks);
@@ -178,6 +188,10 @@ export function openPdfPreview(rendered: OffscreenCanvas, shot: ShotRecord, sett
     root.querySelectorAll<HTMLButtonElement>('#pdfp-paper button').forEach((b) => b.classList.toggle('on', b.dataset.value === paper));
     root.querySelectorAll<HTMLButtonElement>('#pdfp-orient button').forEach((b) => {
       b.classList.toggle('on', !full && b.dataset.value === orientation);
+      b.disabled = full;
+    });
+    root.querySelectorAll<HTMLButtonElement>('#pdfp-margin button').forEach((b) => {
+      b.classList.toggle('on', !full && b.dataset.value === margin);
       b.disabled = full;
     });
     (q('pdfp-auto') as HTMLButtonElement).disabled = full;
@@ -266,6 +280,13 @@ export function openPdfPreview(rendered: OffscreenCanvas, shot: ShotRecord, sett
       const v = (e.target as HTMLElement).closest<HTMLButtonElement>('button')?.dataset.value as PdfOrientation | undefined;
       if (v && v !== orientation && paper !== 'full') {
         orientation = v;
+        replan();
+      }
+    });
+    q('pdfp-margin').addEventListener('click', (e) => {
+      const v = (e.target as HTMLElement).closest<HTMLButtonElement>('button')?.dataset.value as PdfMargin | undefined;
+      if (v && v !== margin && paper !== 'full') {
+        margin = v;
         replan();
       }
     });

@@ -121,6 +121,28 @@ describe('pageGeometry: 용지 4가지 (SET-20)', () => {
     const g = pageGeometry('full', 2560, 4318, 'landscape');
     expect([g.pageW, g.pageH]).toEqual([1920, 3238.5]);
   });
+
+  // 목적: 여백 "없음"을 골랐는데 그림 둘레에 흰 여백이 남는 결함을 막는다 (Issue #9)
+  it('[BVA] TC-MARGIN-01 A4 + 여백 없음(0pt) → 그림이 용지 폭을 꽉 채우고 왼쪽 위 (0,0)에서 시작', () => {
+    const g = pageGeometry('a4', 1000, 5000, 'portrait', 'none');
+    expect([g.originX, g.originY]).toEqual([0, 0]);
+    expect(1000 * g.scale).toBeCloseTo(595.28);
+  });
+
+  // 목적: 여백이 좁아졌는데 한 쪽에 들어가는 높이가 그대로여서 쪽 아래가 비거나 넘치는 결함을 막는다 (Issue #9)
+  it('[EP] TC-MARGIN-02 여백 좁게(18pt) → 그림이 보통보다 커지고, 그림 높이+위아래 여백이 용지 높이를 넘지 않음', () => {
+    const narrow = pageGeometry('a4', 1000, 5000, 'portrait', 'narrow');
+    const normal = pageGeometry('a4', 1000, 5000, 'portrait', 'normal');
+    expect(narrow.originX).toBe(18);
+    expect(narrow.scale).toBeGreaterThan(normal.scale);
+    expect(narrow.originY * 2 + narrow.sliceH * narrow.scale).toBeLessThanOrEqual(narrow.pageH);
+  });
+
+  // 목적: 전체 이미지에 여백이 붙어 이미지 크기가 달라지는 결함을 막는다 (Issue #9)
+  it('[EP] TC-MARGIN-03 전체 이미지 + 여백 보통 → 여백 무시, 원점 (0,0)', () => {
+    const g = pageGeometry('full', 2560, 4318, 'portrait', 'normal');
+    expect([g.originX, g.originY]).toEqual([0, 0]);
+  });
 });
 
 describe('mapLinks / linksForSlice: 누를 수 있는 링크 (SET-22)', () => {
