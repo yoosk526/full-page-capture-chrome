@@ -6,6 +6,7 @@ import { checkFolderName } from './fileName';
 export type FileFormat = 'png' | 'jpg' | 'pdf';
 export type PdfPaper = 'full' | 'letter' | 'legal' | 'a4';
 export type PdfOrientation = 'portrait' | 'landscape';
+export type PdfMargin = 'none' | 'narrow' | 'normal';
 
 export interface Settings {
   fileFormat: FileFormat;
@@ -19,6 +20,8 @@ export interface Settings {
   pdfPaper: PdfPaper;
   /** 용지 방향 (PR #1 요청). 전체 이미지에는 쓰지 않는다 */
   pdfOrientation: PdfOrientation;
+  /** 용지 여백 (Issue #9). 전체 이미지에는 쓰지 않는다 */
+  pdfMargin: PdfMargin;
   pdfSmartBreak: boolean;
   pdfLinks: boolean;
   pdfHeader: boolean;
@@ -49,6 +52,7 @@ export const DEFAULT_SETTINGS: Settings = {
   shrinkCopy: true,
   pdfPaper: 'full',
   pdfOrientation: 'portrait',
+  pdfMargin: 'normal',
   pdfSmartBreak: true,
   pdfLinks: true,
   pdfHeader: false,
@@ -83,6 +87,7 @@ export function normalizeSettings(raw: unknown): Settings {
     shrinkCopy: bool(r.shrinkCopy, d.shrinkCopy),
     pdfPaper: oneOf(r.pdfPaper, ['full', 'letter', 'legal', 'a4'] as const, d.pdfPaper),
     pdfOrientation: oneOf(r.pdfOrientation, ['portrait', 'landscape'] as const, d.pdfOrientation),
+    pdfMargin: oneOf(r.pdfMargin, ['none', 'narrow', 'normal'] as const, d.pdfMargin),
     pdfSmartBreak: bool(r.pdfSmartBreak, d.pdfSmartBreak),
     pdfLinks: bool(r.pdfLinks, d.pdfLinks),
     pdfHeader: bool(r.pdfHeader, d.pdfHeader),

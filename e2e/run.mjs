@@ -687,6 +687,10 @@ async function optionsFlow(context, worker, extId) {
   await page.locator('#orientation button[data-value="landscape"]').click();
   await page.waitForTimeout(150);
   check('설정: A4 + 가로 방향 저장', (await stored()).pdfOrientation === 'landscape');
+  check('설정: 여백 기본값 보통', (await stored()).pdfMargin === undefined || (await stored()).pdfMargin === 'normal');
+  await page.locator('#margin button[data-value="none"]').click();
+  await page.waitForTimeout(150);
+  check('설정: 여백 없음 저장', (await stored()).pdfMargin === 'none');
   const smoothDefault = await page.locator('#smooth-strokes').isChecked();
   await page.locator('#smooth-strokes').click();
   await page.waitForTimeout(200);

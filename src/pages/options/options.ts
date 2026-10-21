@@ -71,6 +71,12 @@ function render(): void {
     b.classList.toggle('on', b.dataset.value === settings.pdfOrientation);
     b.setAttribute('aria-pressed', String(b.dataset.value === settings.pdfOrientation));
   });
+  $('#margin-row').classList.toggle('disabled', isFull);
+  document.querySelectorAll<HTMLButtonElement>('#margin button').forEach((b) => {
+    b.disabled = isFull;
+    b.classList.toggle('on', b.dataset.value === settings.pdfMargin);
+    b.setAttribute('aria-pressed', String(b.dataset.value === settings.pdfMargin));
+  });
 }
 
 function saveFolder(): void {
@@ -130,6 +136,9 @@ async function main(): Promise<void> {
   bindSwitch('pdf-preview', 'pdfPreview');
   document.querySelectorAll<HTMLButtonElement>('#orientation button').forEach((b) =>
     b.addEventListener('click', () => void save({ pdfOrientation: b.dataset.value as Settings['pdfOrientation'] })),
+  );
+  document.querySelectorAll<HTMLButtonElement>('#margin button').forEach((b) =>
+    b.addEventListener('click', () => void save({ pdfMargin: b.dataset.value as Settings['pdfMargin'] })),
   );
   $('#report-btn').addEventListener('click', openReport);
   $('#gallery-btn').addEventListener('click', () => location.assign('gallery.html'));

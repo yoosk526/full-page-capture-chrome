@@ -1,5 +1,5 @@
 // PDF 만들기 (EXP-02, EXP-03, SET-20 ~ SET-23). 외부 라이브러리 없이 JPEG 그림을 페이지에 붙인다.
-import type { PdfOrientation, PdfPaper } from './settings';
+import type { PdfMargin, PdfOrientation, PdfPaper } from './settings';
 
 /** 용지 크기(pt, 1pt = 1/72인치) */
 export const PAPER_SIZE_PT: Record<Exclude<PdfPaper, 'full'>, [number, number]> = {
@@ -7,8 +7,8 @@ export const PAPER_SIZE_PT: Record<Exclude<PdfPaper, 'full'>, [number, number]> 
   legal: [612, 1008], // 8.5 x 14인치
   a4: [595.28, 841.89], // 210 x 297mm
 };
-/** 용지 여백(pt). TODO(미확인): 기존 프로그램의 여백은 모름. 0.5인치 */
-export const PAGE_MARGIN_PT = 36;
+/** 용지 여백(pt). TODO(미확인): 기존 프로그램의 여백은 모름. 보통 = 0.5인치 (Issue #9: 없음·좁게·보통 중 고름) */
+export const PAGE_MARGIN_PT: Record<PdfMargin, number> = { none: 0, narrow: 18, normal: 36 };
 /** "이미지 한 장" 용지에서 픽셀 → pt 비율 (96dpi 기준) */
 export const PX_TO_PT = 0.75;
 /** PDF 한 페이지의 가장 긴 변(pt). PDF 표준이 권하는 한계로, 넘으면 열리지 않거나 잘리는 프로그램이 있다 */
@@ -172,7 +172,7 @@ export interface PageGeometry {
  * 용지와 방향(PR #1 요청)에 따른 페이지 배치. "전체 이미지"는 방향과 관계없이 이미지 크기 그대로다.
  * 가로 방향은 용지의 가로·세로를 바꾼다.
  */
-export function pageGeometry(paper: PdfPaper, imageW: number, imageH: number, orientation: PdfOrientation = 'portrait'): PageGeometry {
+export function pageGeometry(paper: PdfPaper, imageW: number, imageH: number, orientation: PdfOrientation = 'portrait', margin: PdfMargin = 'normal'): PageGeometry {
   if (paper === 'full') {
     // 아주 긴 이미지(Issue #7: 최대 32,000px)는 페이지를 PDF 한계 안으로 줄인다. 그림 화질(픽셀)은 그대로다
     const scale = Math.min(PX_TO_PT, PDF_MAX_PAGE_PT / imageH, PDF_MAX_PAGE_PT / imageW);
@@ -180,9 +180,10 @@ export function pageGeometry(paper: PdfPaper, imageW: number, imageH: number, or
   }
   const [shortSide, longSide] = PAPER_SIZE_PT[paper];
   const [pageW, pageH] = orientation === 'landscape' ? [longSide, shortSide] : [shortSide, longSide];
-  const scale = (pageW - PAGE_MARGIN_PT * 2) / imageW;
-  const sliceH = Math.max(1, Math.floor((pageH - PAGE_MARGIN_PT * 2) / scale));
-  return { pageW, pageH, originX: PAGE_MARGIN_PT, originY: PAGE_MARGIN_PT, scale, sliceH };
+  const m = PAGE_MARGIN_PT[margin];
+  const scale = (pageW - m * 2) / imageW;
+  const sliceH = Math.max(1, Math.floor((pageH - m * 2) / scale));
+  return { pageW, pageH, originX: m, originY: m, scale, sliceH };
 }
 
 // ---- 링크 (SET-22) ----
