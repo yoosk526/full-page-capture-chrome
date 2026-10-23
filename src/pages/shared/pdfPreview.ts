@@ -2,7 +2,7 @@
 // 페이지가 어디서 나뉘는지 보여 주고, 나뉘는 선을 끌어 고치거나 두 쪽을 합칠 수 있다.
 // Issue #5: 왼쪽 그림 확대, 칸 너비 조절, 쪽 크게 보기, 고른 쪽만 저장.
 // TODO(추정): 여기서 바꾼 용지·방향은 이번 저장에만 쓰고 설정에는 남기지 않는다 (Q46 답변 ①).
-import { breaksFromSlices, resizeSelection, slicesFromBreaks, type Slice } from '../../core/pdf';
+import { breaksFromSlices, resizeSelection, restoreBreaks, slicesFromBreaks, type Slice } from '../../core/pdf';
 import type { PdfMargin, PdfOrientation, PdfPaper, Settings } from '../../core/settings';
 import { t } from '../../shared/i18n';
 import { icons } from '../../shared/icons';
@@ -18,15 +18,27 @@ const RIGHT_MIN = 260;
 const CARD_W = 150;
 const PAPERS: PdfPaper[] = ['full', 'a4', 'letter', 'legal'];
 
+/** 창을 닫을 때 나누기 상태를 기억해 두었다가 같은 캡처로 다시 열면 이어서 고친다 (Issue #11). 페이지를 닫으면 사라진다 */
+interface Remembered {
+  paper: PdfPaper;
+  orientation: PdfOrientation;
+  margin: PdfMargin;
+  breaks: number[];
+}
+const remembered = new Map<string, Remembered>();
+
 /**
  * 미리보기 창을 띄운다.
  * @returns 저장을 누르면 PDF 파일, 취소하면 null
  */
 export function openPdfPreview(rendered: OffscreenCanvas, shot: ShotRecord, settings: Settings): Promise<Blob | null> {
   const P = t.pdfPreview;
-  let paper: PdfPaper = settings.pdfPaper;
-  let orientation: PdfOrientation = settings.pdfOrientation;
-  let margin: PdfMargin = settings.pdfMargin;
+  const prior = remembered.get(shot.id);
+  let paper: PdfPaper = prior?.paper ?? settings.pdfPaper;
+  let orientation: PdfOrientation = prior?.orientation ?? settings.pdfOrientation;
+  let margin: PdfMargin = prior?.margin ?? settings.pdfMargin;
+  /** 처음 한 번만 이전 나누기를 되살린다 (용지 등을 바꾸면 다시 자동으로 나눈다) */
+  let restore = prior?.breaks ?? null;
   let plan: PdfPlan;
   let breaks: number[] = [];
   /** 오른쪽 쪽마다 저장할지 */
@@ -133,7 +145,8 @@ export function openPdfPreview(rendered: OffscreenCanvas, shot: ShotRecord, sett
 
   const replan = () => {
     plan = planPdf(rendered, shot, { ...settings, pdfPaper: paper, pdfOrientation: orientation, pdfMargin: margin });
-    breaks = breaksFromSlices(plan.slices);
+    breaks = (restore && restoreBreaks(restore, plan.canvas.height, plan.g.sliceH)) || breaksFromSlices(plan.slices);
+    restore = null;
     picked = plan.slices.map(() => true);
     strip.reset({ imageW: plan.canvas.width, imageH: plan.canvas.height, sliceH: plan.g.sliceH, findBreak: plan.findBreak }, breaks);
     render();
@@ -247,6 +260,7 @@ export function openPdfPreview(rendered: OffscreenCanvas, shot: ShotRecord, sett
 
   return new Promise((resolve) => {
     const close = (result: Blob | null) => {
+      remembered.set(shot.id, { paper, orientation, margin, breaks: [...breaks] });
       window.removeEventListener('keydown', onKey, true);
       root.remove();
       resolve(result);

@@ -89,6 +89,23 @@ export function slicesFromBreaks(breaks: readonly number[], totalH: number): Sli
   return ys.slice(0, -1).map((y, i) => ({ y, h: ys[i + 1] - y }));
 }
 
+/** PDF에 넣는 JPEG 화질(0~1). 1이면 눈에 띄는 손실이 없다 (Issue #11, 이전 0.92) */
+export const PDF_JPEG_QUALITY = 1;
+
+/**
+ * 이전에 고쳐 둔 나누는 곳이 이번 그림에도 그대로 쓸 수 있는지 확인한다 (Issue #11).
+ * 오름차순이고, 모든 쪽 높이가 minH 이상 sliceH 이하일 때만 돌려주고, 아니면 null.
+ */
+export function restoreBreaks(saved: readonly number[], totalH: number, sliceH: number, minH: number = PAGE_MIN_PX): number[] | null {
+  let prev = 0;
+  for (const b of [...saved, totalH]) {
+    const h = b - prev;
+    if (!Number.isFinite(h) || h < minH || h > sliceH) return null;
+    prev = b;
+  }
+  return [...saved];
+}
+
 /** 페이지 목록 → 나누는 곳 목록 */
 export function breaksFromSlices(slices: readonly Slice[]): number[] {
   return slices.slice(1).map((s) => s.y);

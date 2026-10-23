@@ -19,6 +19,7 @@ import {
   pageGeometry,
   pageSlices,
   pdfUri,
+  restoreBreaks,
 } from '../src/core/pdf';
 
 const latin1 = (b: Uint8Array) => Array.from(b, (c) => String.fromCharCode(c)).join('');
@@ -301,5 +302,22 @@ describe('pageGeometry: 아주 긴 이미지의 "전체 이미지" PDF (Issue #7
     const g = pageGeometry('full', 1000, PDF_MAX_PAGE_PT / PX_TO_PT + 1);
     expect(g.pageH).toBeCloseTo(PDF_MAX_PAGE_PT, 6);
     expect(g.scale).toBeLessThan(PX_TO_PT);
+  });
+});
+
+describe('restoreBreaks: 미리보기를 닫았다 다시 열 때 고쳐 둔 나누기 되살리기 (Issue #11)', () => {
+  // 목적: 다시 열었을 때 사용자가 고친 나누는 곳이 사라져 처음부터 다시 나눠야 하는 결함을 막는다
+  it('[EP] TC-RESTORE-01 쓸 수 있는 나누는 곳 → 그대로 돌려줌', () => {
+    expect(restoreBreaks([800, 1700], 2500, 1000)).toEqual([800, 1700]);
+  });
+  // 목적: 용지가 달라져 한 쪽 높이 한계를 넘는 옛 나누기를 쓰면 그림이 잘리는 결함을 막는다
+  it('[BVA] TC-RESTORE-02 한 쪽 높이 = 최대+1 → null', () => {
+    expect(restoreBreaks([1001], 2000, 1000)).toBeNull();
+    expect(restoreBreaks([1000], 2000, 1000)).toEqual([1000]);
+  });
+  // 목적: 너무 얇은 쪽이나 뒤죽박죽 순서의 나누기를 되살려 빈 쪽이 생기는 결함을 막는다
+  it('[BVA] TC-RESTORE-03 마지막 쪽 높이 = 최소-1 → null', () => {
+    expect(restoreBreaks([1000], 1000 + PAGE_MIN_PX - 1, 2000)).toBeNull();
+    expect(restoreBreaks([1000], 1000 + PAGE_MIN_PX, 2000)).toEqual([1000]);
   });
 });
