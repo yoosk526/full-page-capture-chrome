@@ -2,6 +2,7 @@
 import {
   blankRows,
   buildPdf,
+  PDF_JPEG_QUALITY,
   findRowGap,
   linksForSlice,
   mapLinks,
@@ -32,7 +33,7 @@ function withHeader(canvas: OffscreenCanvas, shot: ShotRecord): { canvas: Offscr
 }
 
 async function jpegBytes(canvas: OffscreenCanvas): Promise<Uint8Array> {
-  const blob = await canvas.convertToBlob({ type: 'image/jpeg', quality: 0.92 });
+  const blob = await canvas.convertToBlob({ type: 'image/jpeg', quality: PDF_JPEG_QUALITY });
   return new Uint8Array(await blob.arrayBuffer());
 }
 
